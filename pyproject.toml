@@ -13,7 +13,6 @@ dash = {version = "2.9.3", python = "3.11", platform = "linux"}
 flask = {version = "2.2.3", python = "3.11", platform = "linux"}
 iso6709 = {version = "0.1.5", python = "3.11", platform = "linux"}
 orjson = {version = "3.8.12", python = "3.11", platform = "linux"}
-pandas = {version = "2.0.1", python = "3.11", platform = "linux"}
 pydantic = {version = "1.10.7", python = "3.11", platform = "linux"}
 python-dotenv = {version = "1.0.0", python = "3.11", platform = "linux"}
 requests = {version = "2.30.0", python = "3.11", platform = "linux"}
@@ -21,7 +20,7 @@ uvicorn = {version = "0.22.0", python = "3.11", platform = "linux"}
 flask-login = "^0.6.2"
 setuptools = "^68.0.0"
 polars = "^0.19.1"
-pyarrow = "^13.0.0"
+azure-storage-file-share = "^12.14.1"
 
 
 [tool.poetry.group.dev.dependencies]
