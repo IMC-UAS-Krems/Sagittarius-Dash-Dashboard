@@ -86,10 +86,10 @@ class App:
         logger.info("Initializing app...")
 
         if app_config is None:
-            if env.FILE_PAHT.startswith("https://"):
-                app_config: dict[str, Any] = requests.get(env.FILE_PAHT).json()
+            if env.FILE_PATH.startswith("https://"):
+                app_config: dict[str, Any] = requests.get(env.FILE_PATH).json()
             else:
-                with open(env.FILE_PAHT, "r") as f:
+                with open(env.FILE_PATH, "r") as f:
                     app_config = orjson.loads(f.read())
 
         service = self._create_service(app_config)
