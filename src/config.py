@@ -87,7 +87,7 @@ class App:
 
         if app_config is None:
             if env.FILE_PATH.startswith("https://"):
-                app_config: dict[str, Any] = requests.get(env.FILE_PATH).json()
+                app_config: dict[str, Any] = r_get(env.FILE_PATH).json()
             else:
                 with open(env.FILE_PATH, "r") as f:
                     app_config = orjson.loads(f.read())
