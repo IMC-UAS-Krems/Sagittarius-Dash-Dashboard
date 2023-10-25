@@ -48,7 +48,12 @@ class Request:
     def _request(self) -> None:
         """Get data from the data source, parse it and save it as a polars DataFrame to `self.df`"""
 
-        resp = r_get(self.url, params={"type": self.query.type})
+        params = {"type": self.query.type}
+        if self.query.limit:
+            params["limit"] = self.query.limit
+        else:
+            params["limit"] = 1000
+        resp = r_get(self.url, params=params)
         data = orjson.loads(resp.content)
 
         if not data:
@@ -67,6 +72,7 @@ class Query(NamedTuple):
 
     type: str = ""
     select: list[str] = []
+    limit: int | None = None
 
 
 class GridItem(NamedTuple):
@@ -130,7 +136,11 @@ class App:
                     url=request["uri"],
                     type=t.SensorType(request["type"].lower()),
                     provider=t.Provider(request["provider"].lower()),
-                    query=Query(request["query"]["type"], request["query"]["select"]),
+                    query=Query(
+                        request["query"]["type"],
+                        request["query"]["select"],
+                        request["query"].get("limit"),
+                    ),
                     to_table=request.get("table", False),
                 )
             except KeyError as e:
