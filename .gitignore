@@ -176,3 +176,4 @@ config2.json
 config3.json
 poetry.lock
 /tailwind.css
+docker-compose.yml
