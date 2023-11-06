@@ -14,6 +14,7 @@ from requests import get as r_get
 
 from src.visualizations.general import make_table
 
+from . import env
 from . import ssdl_types as t
 from .exceptions import ConfigError
 from .parser import parse
