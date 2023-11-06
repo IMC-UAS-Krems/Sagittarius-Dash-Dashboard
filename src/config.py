@@ -85,7 +85,8 @@ class GridItem(NamedTuple):
 
 class App:
     def __init__(
-        self, app_config: dict[str, Any] | None = None  # pyright: ignore
+        self,
+        app_config: dict[str, Any] | None = None,  # pyright: ignore
     ) -> None:
         requests = {}
 

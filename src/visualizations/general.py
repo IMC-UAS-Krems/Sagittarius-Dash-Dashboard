@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+import dash_ag_grid as dag
 import polars as pl
 from dash import Input, Output, callback
 from plotly import graph_objects as go
@@ -76,28 +77,41 @@ def make_plot(plot_config: dict[str, Any], requests: dict[str, Request]):
 
 
 def make_table(df: pl.DataFrame) -> go.Figure:
-    fig = go.Figure(
-        data=[
-            go.Table(
-                header=dict(
-                    values=list(df.columns),
-                    font=dict(size=10),
-                    align="center",
-                ),
-                cells=dict(
-                    values=[
-                        df.select(pl.col(col)).to_series().to_list()
-                        for col in df.columns
-                    ],
-                    align="center",
-                    height=30,
-                ),
-            )
-        ]
+    # fig = go.Figure(
+    #     data=[
+    #         go.Table(
+    #             header=dict(
+    #                 values=list(df.columns),
+    #                 font=dict(size=10),
+    #                 align="center",
+    #             ),
+    #             cells=dict(
+    #                 values=[
+    #                     df.select(pl.col(col)).to_series().to_list()
+    #                     for col in df.columns
+    #                 ],
+    #                 align="center",
+    #                 height=30,
+    #             ),
+    #         )
+    #     ]
+    # )
+    # fig.update_layout(
+    #     margin=dict(l=10, r=10, t=10, b=10),
+    # )
+    fig = dag.AgGrid(
+        columnDefs=[{"field": col} for col in df.columns],
+        rowData=[row for row in df.rows(named=True)],
+        dashGridOptions={"pagination": True, "paginationAutoPageSize": True},
+        defaultColDef={
+            "resizable": True,
+            "sortable": True,
+            "filter": True,
+        },
+        columnSize="autoSize",
+        style={"height": "100%", "width": "100%"},
     )
-    fig.update_layout(
-        margin=dict(l=10, r=10, t=10, b=10),
-    )
+
     return fig
 
 
@@ -322,12 +336,17 @@ class Plot(Visualization):
                     x=self.get_data("dateObserved").sort()
                     if not self.filter
                     else self.get_data_with_filter(
-                        "dateObserved", self.filter, filter_by  # type: ignore
+                        "dateObserved",
+                        self.filter,
+                        filter_by,  # type: ignore
                     ).sort(),
                     y=self.get_data(trace)
                     if not self.filter
                     else self.get_data_with_filter(
-                        trace, self.filter, filter_by, bar_chart=True  # type: ignore
+                        trace,
+                        self.filter,
+                        filter_by,
+                        bar_chart=True,  # type: ignore
                     ),
                     name=trace,
                 )
