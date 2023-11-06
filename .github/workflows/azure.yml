@@ -1,5 +1,9 @@
-on: [push]
 name: Docker Azure Container
+
+on:
+  push:
+    branches:
+      - master
 
 jobs:
     build-and-deploy:

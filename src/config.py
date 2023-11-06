@@ -14,6 +14,7 @@ from requests import get as r_get
 
 from src.visualizations.general import make_table
 
+from . import env
 from . import ssdl_types as t
 from .exceptions import ConfigError
 from .parser import parse
@@ -48,7 +49,12 @@ class Request:
     def _request(self) -> None:
         """Get data from the data source, parse it and save it as a polars DataFrame to `self.df`"""
 
-        resp = r_get(self.url, params={"type": self.query.type})
+        params = {"type": self.query.type}
+        if self.query.limit:
+            params["limit"] = self.query.limit
+        else:
+            params["limit"] = 1000
+        resp = r_get(self.url, params=params)
         data = orjson.loads(resp.content)
 
         if not data:
@@ -67,6 +73,7 @@ class Query(NamedTuple):
 
     type: str = ""
     select: list[str] = []
+    limit: int | None = None
 
 
 class GridItem(NamedTuple):
@@ -79,16 +86,19 @@ class GridItem(NamedTuple):
 
 class App:
     def __init__(
-        self, app_config: dict[str, Any] | None = None  # pyright: ignore
+        self,
+        app_config: dict[str, Any] | None = None,  # pyright: ignore
     ) -> None:
         requests = {}
 
         logger.info("Initializing app...")
 
         if app_config is None:
-            with open("config.json") as f:
-                content = f.read()
-            app_config: dict[str, Any] = orjson.loads(content)
+            if env.FILE_PATH.startswith("https://"):
+                app_config: dict[str, Any] = r_get(env.FILE_PATH).json()
+            else:
+                with open(env.FILE_PATH, "r") as f:
+                    app_config = orjson.loads(f.read())
 
         service = self._create_service(app_config)
 
@@ -128,7 +138,11 @@ class App:
                     url=request["uri"],
                     type=t.SensorType(request["type"].lower()),
                     provider=t.Provider(request["provider"].lower()),
-                    query=Query(request["query"]["type"], request["query"]["select"]),
+                    query=Query(
+                        request["query"]["type"],
+                        request["query"]["select"],
+                        request["query"].get("limit"),
+                    ),
                     to_table=request.get("table", False),
                 )
             except KeyError as e:

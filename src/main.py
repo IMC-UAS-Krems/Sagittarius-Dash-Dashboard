@@ -26,14 +26,23 @@ def create_grid() -> list[my_dash_component.Container | dcc.Graph]:
                     [
                         grid_item.selector[0],
                         grid_item.selector[1],
-                        dcc.Graph(className="w-full h-full", id=grid_item.plot_id),
+                        dcc.Graph(
+                            className="w-full h-1/2 flex-1", id=grid_item.plot_id
+                        ),
                     ]
                 )
             )
         else:
-            grid.append(dcc.Graph(className="w-full h-full", figure=grid_item.plot))
+            grid.append(
+                dcc.Graph(
+                    className="w-full h-full",
+                    figure=grid_item.plot,
+                    responsive=True,
+                )
+            )
+
     for grid_item in Dashboard.tables:
-        grid.append(dcc.Graph(className="w-full", figure=grid_item.plot))
+        grid.append(html.Div(className="w-full h-full pb-1.5", children=grid_item))
 
     return grid
 

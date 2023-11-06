@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
-import plotly.express as px
+import dash_ag_grid as dag
 import polars as pl
 from dash import Input, Output, callback
 from plotly import graph_objects as go
@@ -77,25 +77,41 @@ def make_plot(plot_config: dict[str, Any], requests: dict[str, Request]):
 
 
 def make_table(df: pl.DataFrame) -> go.Figure:
-    fig = go.Figure(
-        data=[
-            go.Table(
-                header=dict(
-                    values=list(df.columns),
-                    font=dict(size=10),
-                    align="center",
-                ),
-                cells=dict(
-                    values=[df.select(pl.col(col)) for col in df.columns],
-                    align="center",
-                    height=30,
-                ),
-            )
-        ]
+    # fig = go.Figure(
+    #     data=[
+    #         go.Table(
+    #             header=dict(
+    #                 values=list(df.columns),
+    #                 font=dict(size=10),
+    #                 align="center",
+    #             ),
+    #             cells=dict(
+    #                 values=[
+    #                     df.select(pl.col(col)).to_series().to_list()
+    #                     for col in df.columns
+    #                 ],
+    #                 align="center",
+    #                 height=30,
+    #             ),
+    #         )
+    #     ]
+    # )
+    # fig.update_layout(
+    #     margin=dict(l=10, r=10, t=10, b=10),
+    # )
+    fig = dag.AgGrid(
+        columnDefs=[{"field": col} for col in df.columns],
+        rowData=[row for row in df.rows(named=True)],
+        dashGridOptions={"pagination": True, "paginationAutoPageSize": True},
+        defaultColDef={
+            "resizable": True,
+            "sortable": True,
+            "filter": True,
+        },
+        columnSize="autoSize",
+        style={"height": "100%", "width": "100%"},
     )
-    fig.update_layout(
-        margin=dict(l=10, r=10, t=10, b=10),
-    )
+
     return fig
 
 
@@ -124,7 +140,7 @@ class Visualization(ABC):
             if bar_chart:
                 result = (
                     self.df.filter(pl.col(filter_by) == filter)
-                    .group_by("dateObserved")
+                    .group_by("dateObserved", maintain_order=True)
                     .agg(pl.first(path))
                     .sort("dateObserved")
                     .select(pl.col(path))
@@ -190,18 +206,33 @@ class Map(Visualization):
         #
 
     def create(self) -> go.Figure:
-        fig = px.scatter_mapbox(
-            lat=self.get_data(self.lat).apply(lambda x: x[0]),
-            lon=self.get_data(self.lon).apply(lambda x: x[1]),
-            hover_name=self.get_data(self.label),
-            hover_data={
-                name: self.get_data(name)
-                .cast(pl.Utf8)
-                .apply(lambda x: "<br>".join(textwrap.wrap(x, 40)))
-                .fill_null("unknown")
-                for name in self.extra
-            },
+        # fig = px.scatter_mapbox(
+        #     lat=self.get_data(self.lat).apply(lambda x: x[0]),
+        #     lon=self.get_data(self.lon).apply(lambda x: x[1]),
+        #     hover_name=self.get_data(self.label),
+        #     hover_data={
+        #         name: self.get_data(name)
+        #         .cast(pl.Utf8)
+        #         .apply(lambda x: "<br>".join(textwrap.wrap(x, 40)))
+        #         .fill_null("unknown")
+        #         for name in self.extra
+        #     },
+        # )
+
+        self.get_custom_data(self.extra)
+        fig = go.Figure(
+            go.Scattermapbox(
+                lat=self.get_data(self.lat).apply(lambda x: x[0]),
+                lon=self.get_data(self.lon).apply(lambda x: x[1]),
+                mode="markers",
+                customdata=self.get_custom_data(self.extra),
+                hovertext=self.get_data(self.label).to_list(),
+            )
+        )
+        # set mapbox_style
+        fig.update_layout(
             mapbox_style="carto-positron",
+            margin=dict(l=10, r=10, t=40, b=10),
             title=self.name,
         )
 
@@ -212,12 +243,10 @@ class Map(Visualization):
                     "<b>" + key.capitalize() + "</b>: %{customdata[" + str(i) + "]}"
                     for i, key in enumerate(self.extra)
                 ]
-            ),
+            )
+            + "<extra></extra>"
         )
 
-        fig.update_layout(
-            margin=dict(l=10, r=10, t=40, b=10),
-        )
         if self.area:
             try:
                 fig.update_layout(
@@ -232,12 +261,35 @@ class Map(Visualization):
 
     def get_data(self, path: str) -> pl.Series:
         try:
-            result = self.df.unique(subset="id").select(pl.col(path)).to_series()
+            result = (
+                self.df.unique(subset="id", maintain_order=True)
+                .select(pl.col(path))
+                .to_series()
+            )
             return result
 
         except KeyError:
             raise ConfigError(
                 f"Map {self.name}: Column {path} not found in {self.name}",
+                "Check if 'data_sources.measurements.<name>.query.select' has this key",
+            )
+
+    def get_custom_data(self, paths: list[str]) -> list[tuple[str]]:
+        try:
+            # python polars dataframe apply to each column
+            result = (
+                self.df.select(paths)
+                .cast(pl.Utf8)
+                .fill_null("unknown")
+                .with_columns(
+                    (pl.all().map_elements(lambda x: "<br>".join(textwrap.wrap(x, 40))))
+                )
+            )
+            return result.rows()
+
+        except KeyError:
+            raise ConfigError(
+                f"Map {self.name}: Column {paths} not found in {self.name}",
                 "Check if 'data_sources.measurements.<name>.query.select' has this key",
             )
 
@@ -284,12 +336,17 @@ class Plot(Visualization):
                     x=self.get_data("dateObserved").sort()
                     if not self.filter
                     else self.get_data_with_filter(
-                        "dateObserved", self.filter, filter_by  # type: ignore
+                        "dateObserved",
+                        self.filter,
+                        filter_by,  # type: ignore
                     ).sort(),
                     y=self.get_data(trace)
                     if not self.filter
                     else self.get_data_with_filter(
-                        trace, self.filter, filter_by, bar_chart=True  # type: ignore
+                        trace,
+                        self.filter,
+                        filter_by,
+                        bar_chart=True,  # type: ignore
                     ),
                     name=trace,
                 )
