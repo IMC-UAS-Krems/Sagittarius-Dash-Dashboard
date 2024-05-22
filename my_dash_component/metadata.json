@@ -46,6 +46,14 @@
           "raw": "Element[]"
         }
       },
+      "selector": {
+        "description": "",
+        "required": true,
+        "type": {
+          "name": "node",
+          "raw": "Element"
+        }
+      },
       "hash": {
         "description": "",
         "required": true,
