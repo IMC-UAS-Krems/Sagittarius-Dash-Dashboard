@@ -1,4 +1,4 @@
-FROM python:3.11.3-slim as base
+FROM python:3.11-slim as base
 
 ARG geocode_key
 ARG secret
