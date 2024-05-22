@@ -22,7 +22,7 @@ class NotNeeded(Exception):
 
 
 def _parse_location(
-    location: dict[str, Any]
+    location: dict[str, Any],
 ) -> Position | list[Position] | list[list[Position]]:
     match location["value"]["type"]:
         case "Point":
@@ -80,6 +80,14 @@ def _parse_address(address: dict[str, Any]) -> str:
     return return_address
 
 
+def _parse_id(id_str: str) -> str:
+    return re.sub(r"-(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}|latest)", "", id_str)
+
+
+def _parse_dateObserved(date: str) -> str:
+    return parse_date(date["value"])
+
+
 def get_parsers() -> dict[str, FunctionType]:
     """Get all non standard parsers"""
     return {
@@ -90,10 +98,10 @@ def get_parsers() -> dict[str, FunctionType]:
 def _parse_value(value: Any) -> Any:
     """parse a generic value"""
 
-    if isinstance(value, str) and re.fullmatch(  # checks if the value is a date
-        r"\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?\b", value
-    ):
-        return parse_date(value)
+    # if isinstance(value, str) and re.fullmatch(  # checks if the value is a date
+    #     r"\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?\b", value
+    # ):
+    #     return parse_date(value)
 
     return value
 
@@ -105,7 +113,7 @@ def _parse(data: FiwareJson, keys: list[str]) -> list[list[Any]]:
     for d in data:
         parsed = []
         for key in keys:
-            item = d[key]
+            item = d.get(key, None)
 
             if (
                 f"_parse_{key}" in parsers
@@ -123,7 +131,8 @@ def _parse(data: FiwareJson, keys: list[str]) -> list[list[Any]]:
                 parsed.append(_parse_value(item["value"]))
 
             else:
-                raise ParserException(f"Parser for {key} not found\nValue: {item}")
+                parsed.append(None)
+                # raise ParserException(f"Parser for {key} not found\nValue: {item}")
 
         to_return.append(parsed)
 

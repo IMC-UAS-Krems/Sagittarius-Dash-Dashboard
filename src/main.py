@@ -2,7 +2,7 @@ import logging
 
 import orjson
 from asgiref.wsgi import WsgiToAsgi
-from dash import dcc, html
+from dash import Input, Output, dcc, html
 from flask import Response, redirect, request
 from werkzeug.datastructures import FileStorage
 from werkzeug.wrappers import Response as WerkzeugResponse
@@ -20,12 +20,10 @@ def create_grid() -> list[my_dash_component.Container | dcc.Graph]:
 
     grid = []
     for grid_item in Dashboard.plots:
-        if grid_item.selector:
+        if grid_item.with_callback:
             grid.append(
                 my_dash_component.Container(
                     [
-                        grid_item.selector[0],
-                        grid_item.selector[1],
                         dcc.Graph(
                             className="w-full h-1/2 flex-1", id=grid_item.plot_id
                         ),
@@ -38,6 +36,7 @@ def create_grid() -> list[my_dash_component.Container | dcc.Graph]:
                     className="w-full h-full",
                     figure=grid_item.plot,
                     responsive=True,
+                    id=grid_item.plot_id,
                 )
             )
 
@@ -53,13 +52,21 @@ def create_layout() -> list[my_dash_component.Container | dcc.Graph]:
     return html.Div(
         [
             dcc.Location(id="sag_url", refresh=False),
+            html.Div(
+                id="dummy-div", style={"visibility": "hidden", "whiteSpace": "nowrap"}
+            ),
             my_dash_component.Navbar(
                 id="sag_navbar",
                 dashboard_name=Dashboard.service.name,
                 dashboard_picture="https://www.fh-krems.ac.at/fileadmin/imc/images/logos/imc-logo-web-preview.png",
                 dashboard_version=str(Dashboard.service.version),
             ),
-            my_dash_component.Grid(create_grid(), hash=Dashboard.hash, id="sag_grid"),
+            my_dash_component.Grid(
+                create_grid(),
+                hash=Dashboard.hash,
+                id="sag_grid",
+                selector=Dashboard.selector,
+            ),
         ]
     )
 
@@ -70,6 +77,28 @@ def init_dash() -> None:
     global Dashboard
     Dashboard = App()
     app.layout = create_layout
+    app.clientside_callback(
+        """
+    function(options) {
+        var longestText = '';
+        options.forEach(option => {
+            if (option.length > longestText.length) {
+                longestText = option;
+            }
+        });
+
+        var dummyDiv = document.getElementById('dummy-div');
+        dummyDiv.innerText = longestText;
+        var width = dummyDiv.offsetWidth;
+
+        var dropdown = document.getElementById("sag-selector");
+        dropdown.style.width = (width + 32) + 'px';  // Adding some padding
+    }
+    """,
+        Output("dummy-div", "children"),
+        [Input("sag-selector", "options")],
+        prevent_initial_call=True,
+    )
 
 
 @server.route("/")

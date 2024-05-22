@@ -6,11 +6,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
-import dash_ag_grid as dag
 import polars as pl
 from dash import Input, Output, callback
 from plotly import graph_objects as go
 from requests import get as r_get
+
+from src.model import GeoMap, Panel
 
 if TYPE_CHECKING:  # https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
     from config import Request
@@ -19,7 +20,9 @@ from ..exceptions import ConfigError
 
 logger = logging.getLogger("dash_app")
 
-VisualizationType = Literal["LineChart", "Scatter", "BarChart", "Map", "PieChart"]
+VisualizationType = Literal[
+    "timeseries", "xy_chart", "bar_chart", "pie_chart", "geomap"
+]
 
 _all__ = [
     "make_map",
@@ -31,88 +34,89 @@ _all__ = [
 ]
 
 
-def make_map(plot_config: dict[str, Any], requests: dict[str, Request]):
+def make_map(plot_name: str, plot_config: GeoMap, requests: dict[str, Request]):
     return Map(
-        source_name=plot_config["source"],
-        name=plot_config["name"],
-        type=plot_config["type"],
-        area=plot_config["extra"]["area"] if "extra" in plot_config else None,
-        lat=plot_config["data"][0],
-        lon=plot_config["data"][0],
-        label=plot_config["data"][1],
-        extra=plot_config["data"][2:],
+        source_name=plot_config.source,
+        name=plot_name,
+        type=plot_config.type,
+        area=plot_config.area,
+        lat=plot_config.traces[0],
+        lon=plot_config.traces[0],
+        label=plot_config.traces[1],
+        extra=plot_config.traces[2:] + ["id"],
         requests=requests,
     ).create()
 
 
 def make_plot_with_callback(
-    plot_config: dict[str, Any],
+    plot_name: str,
+    plot_config: Panel,
     requests: dict[str, Request],
     comp_id: str,
     graph_id: str,
     func_name: str,
+    geo_map_id: str,
 ):
     """
     Makes a plot with a callback to update the plot on input change.
     See https://dash.plotly.com/basic-callbacks
     """
     return Plot(
-        source_name=plot_config["source"],
-        name=plot_config["name"],
-        type=plot_config["type"],
-        traces=plot_config["traces"],
-        filter=plot_config["group_by"],
+        source_name=plot_config.source,
+        name=plot_name,
+        type=plot_config.type,
+        traces=plot_config.traces,
         requests=requests,
-    ).add_callback(comp_id, graph_id, func_name)
+    ).add_callback(comp_id, graph_id, func_name, geo_map_id)
 
 
-def make_plot(plot_config: dict[str, Any], requests: dict[str, Request]):
+def make_plot(plot_name: str, plot_config: Panel, requests: dict[str, Request]):
     return Plot(
-        source_name=plot_config["source"],
-        name=plot_config["name"],
-        type=plot_config["type"],
-        traces=plot_config["traces"],
+        source_name=plot_config.source,
+        name=plot_name,
+        type=plot_config.type,
+        traces=plot_config.traces,
         requests=requests,
     ).create()
 
 
-def make_table(df: pl.DataFrame) -> go.Figure:
-    # fig = go.Figure(
-    #     data=[
-    #         go.Table(
-    #             header=dict(
-    #                 values=list(df.columns),
-    #                 font=dict(size=10),
-    #                 align="center",
-    #             ),
-    #             cells=dict(
-    #                 values=[
-    #                     df.select(pl.col(col)).to_series().to_list()
-    #                     for col in df.columns
-    #                 ],
-    #                 align="center",
-    #                 height=30,
-    #             ),
-    #         )
-    #     ]
-    # )
-    # fig.update_layout(
-    #     margin=dict(l=10, r=10, t=10, b=10),
-    # )
-    fig = dag.AgGrid(
-        columnDefs=[{"field": col} for col in df.columns],
-        rowData=[row for row in df.rows(named=True)],
-        dashGridOptions={"pagination": True, "paginationAutoPageSize": True},
-        defaultColDef={
-            "resizable": True,
-            "sortable": True,
-            "filter": True,
-        },
-        columnSize="autoSize",
-        style={"height": "100%", "width": "100%"},
-    )
-
-    return fig
+# def make_table(df: pl.DataFrame) -> go.Figure:
+#     # fig = go.Figure(
+#     #     data=[
+#     #         go.Table(
+#     #             header=dict(
+#     #                 values=list(df.columns),
+#     #                 font=dict(size=10),
+#     #                 align="center",
+#     #             ),
+#     #             cells=dict(
+#     #                 values=[
+#     #                     df.select(pl.col(col)).to_series().to_list()
+#     #                     for col in df.columns
+#     #                 ],
+#     #                 align="center",
+#     #                 height=30,
+#     #             ),
+#     #         )
+#     #     ]
+#     # )
+#     # fig.update_layout(
+#     #     margin=dict(l=10, r=10, t=10, b=10),
+#     # )
+#     fig = dag.AgGrid(
+#         columnDefs=[{"field": col} for col in df.columns],
+#         rowData=[row for row in df.rows(named=True)],
+#         dashGridOptions={"pagination": True, "paginationAutoPageSize": True},
+#         defaultColDef={
+#             "resizable": True,
+#             "sortable": True,
+#             "filter": True,
+#         },
+#         columnSize="autoSize",
+#         style={"height": "100%", "width": "100%"},
+#     )
+#
+#     return fig
 
 
 @dataclass
@@ -242,6 +246,7 @@ class Map(Visualization):
                 [
                     "<b>" + key.capitalize() + "</b>: %{customdata[" + str(i) + "]}"
                     for i, key in enumerate(self.extra)
+                    if key != "id"
                 ]
             )
             + "<extra></extra>"
@@ -278,7 +283,8 @@ class Map(Visualization):
         try:
             # python polars dataframe apply to each column
             result = (
-                self.df.select(paths)
+                self.df.unique(subset="id", maintain_order=True)
+                .select(paths)
                 .cast(pl.Utf8)
                 .fill_null("unknown")
                 .with_columns(
@@ -297,70 +303,60 @@ class Map(Visualization):
 @dataclass
 class Plot(Visualization):
     traces: list[Any]  # list[dict[str, str]] | list[str]
-    filter: str = field(default_factory=str)
     graph_id: str = field(init=False)
 
     def create(self, filter_by: str | None = None) -> go.Figure:
         # TODO: this needs to be refactored (probably with a factory)
         fig = go.Figure()
 
-        if self.type == "LineChart":
-            for trace in self.traces:
+        if self.type == "timeseries":
+            for i in range(1, len(self.traces)):
+                trace = self.traces[i]
                 fig.add_scatter(
-                    x=self.get_data(trace["x"])
-                    if not self.filter
-                    else self.get_data_with_filter(trace["x"], self.filter, filter_by),  # type: ignore
-                    y=self.get_data(trace["y"])
-                    if not self.filter
-                    else self.get_data_with_filter(trace["y"], self.filter, filter_by),  # type: ignore
-                    mode="lines+markers",
-                    name=trace["y"],
+                    x=self.get_data_with_filter("dateObserved", "id", filter_by).sort(),  # type: ignore
+                    y=self.get_data_with_filter(trace, "id", filter_by),  # type: ignore
+                    mode="lines",
+                    name=trace,
                 )
 
-        elif self.type == "Scatter":
-            for trace in self.traces:
+        elif self.type == "xy_chart":
+            for i in range(1, len(self.traces)):
+                trace = self.traces[i]
                 fig.add_scatter(
-                    x=self.get_data(trace["x"])
-                    if not self.filter
-                    else self.get_data_with_filter(trace["x"], self.filter, filter_by),  # type: ignore
-                    y=self.get_data(trace["y"])
-                    if not self.filter
-                    else self.get_data_with_filter(trace["y"], self.filter, filter_by),  # type: ignore
+                    x=self.get_data_with_filter(self.traces[0], "id", filter_by),  # type: ignore
+                    y=self.get_data_with_filter(trace, "id", filter_by),  # type: ignore
                     mode="markers",
-                    name=trace["y"],
+                    name=trace,
                 )
 
-        elif self.type == "BarChart":
-            for trace in self.traces:
+        elif self.type == "bar_chart":
+            for i in range(1, len(self.traces)):
+                trace = self.traces[i]
                 fig.add_bar(
-                    x=self.get_data("dateObserved").sort()
-                    if not self.filter
-                    else self.get_data_with_filter(
+                    x=self.get_data_with_filter(
                         "dateObserved",
-                        self.filter,
+                        "id",
                         filter_by,  # type: ignore
                     ).sort(),
-                    y=self.get_data(trace)
-                    if not self.filter
-                    else self.get_data_with_filter(
+                    y=self.get_data_with_filter(
                         trace,
-                        self.filter,
+                        "id",
                         filter_by,
                         bar_chart=True,  # type: ignore
                     ),
                     name=trace,
                 )
 
-        elif self.type == "PieChart":
+        elif self.type == "pie_chart":
             values = []
             labels = self.traces
             for trace in self.traces:
                 values.append(
-                    self.get_data(trace).sum()
-                    if not self.filter
-                    else self.get_data_with_filter(trace, self.filter, filter_by).sum()  # type: ignore
+                    self.get_data_with_filter(trace, "id", filter_by).sum()  # type: ignore
                 )
             fig.add_pie(values=values, labels=labels, hole=0.3)
+        else:
+            print("Unknown plot type {self.type}")
 
         fig.update_layout(
             title=self.name,
@@ -372,7 +368,9 @@ class Plot(Visualization):
         )
         return fig
 
-    def add_callback(self, comp_id: str, graph_id: str, func_name: str) -> None:
+    def add_callback(
+        self, comp_id: str, graph_id: str, func_name: str, geo_map_id: str
+    ) -> None:
         @callback(
             Output(component_id=graph_id, component_property="figure"),
             Input(component_id=comp_id, component_property="value"),
@@ -394,3 +392,28 @@ class Plot(Visualization):
             return fig
 
         _func.__name__ = func_name
+
+        @callback(
+            Output(
+                component_id=graph_id, component_property="figure", allow_duplicate=True
+            ),
+            Input(component_id=geo_map_id, component_property="clickData"),
+            prevent_initial_call=True,
+        )
+        def _func_map(geomap_input: dict) -> go.Figure:
+            if geomap_input:
+                return self.create(geomap_input["points"][0]["customdata"][-1])
+
+            fig = go.Figure()
+            fig.update_layout(
+                title=self.name,
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                ),
+                showlegend=True,
+                margin=dict(l=20, r=60, t=40, b=20),
+            )
+
+            return fig
+
+        _func_map.__name__ = func_name + "map"
