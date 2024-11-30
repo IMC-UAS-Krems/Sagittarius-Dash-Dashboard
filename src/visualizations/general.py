@@ -12,9 +12,11 @@ from plotly import graph_objects as go
 from requests import get as r_get
 
 from src.model import GeoMap, Panel
+from src.requests import Requests
+
 
 if TYPE_CHECKING:  # https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
-    from config import Request
+    pass
 
 from ..exceptions import ConfigError
 
@@ -34,7 +36,7 @@ _all__ = [
 ]
 
 
-def make_map(plot_name: str, plot_config: GeoMap, requests: dict[str, Request]):
+def make_map(plot_name: str, plot_config: GeoMap):
     return Map(
         source_name=plot_config.source,
         name=plot_name,
@@ -44,14 +46,12 @@ def make_map(plot_name: str, plot_config: GeoMap, requests: dict[str, Request]):
         lon=plot_config.traces[0],
         label=plot_config.traces[1],
         extra=plot_config.traces[2:] + ["id"],
-        requests=requests,
     ).create()
 
 
 def make_plot_with_callback(
     plot_name: str,
     plot_config: Panel,
-    requests: dict[str, Request],
     comp_id: str,
     graph_id: str,
     func_name: str,
@@ -66,17 +66,15 @@ def make_plot_with_callback(
         name=plot_name,
         type=plot_config.type,
         traces=plot_config.traces,
-        requests=requests,
     ).add_callback(comp_id, graph_id, func_name, geo_map_id)
 
 
-def make_plot(plot_name: str, plot_config: Panel, requests: dict[str, Request]):
+def make_plot(plot_name: str, plot_config: Panel):
     return Plot(
         source_name=plot_config.source,
         name=plot_name,
         type=plot_config.type,
         traces=plot_config.traces,
-        requests=requests,
     ).create()
 
 
@@ -124,7 +122,6 @@ class Visualization(ABC):
     name: str
     type: VisualizationType
     source_name: str
-    requests: dict[str, Any]
 
     @abstractmethod
     def create(self) -> None:
@@ -166,7 +163,7 @@ class Visualization(ABC):
 
     @property
     def df(self) -> pl.DataFrame:
-        return self.requests[self.source_name].df
+        return Requests.get_request(self.source_name).df
 
 
 @dataclass

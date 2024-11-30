@@ -1,6 +1,5 @@
 import logging
 
-import orjson
 from asgiref.wsgi import WsgiToAsgi
 from dash import Input, Output, dcc, html
 from flask import Response, redirect, request
@@ -113,10 +112,7 @@ def change_config() -> Response:
     global Dashboard
 
     file: FileStorage = list(request.files.values())[0]
-    new_config = orjson.loads(file.stream.read().decode("utf-8"))
-    file.stream.seek(0)
-    file.save("config.json")
-    Dashboard = App(new_config)
+    Dashboard = App(file.stream.read().decode("utf-8"))
     return Response(status=200)
 
 
