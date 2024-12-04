@@ -156,7 +156,10 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
     df = _get_df(plot_config.source)
     lat_lon = plot_config.traces[0]
     label = plot_config.traces[1]
-    extra = plot_config.traces[2:] + ["id"]
+    extra = plot_config.traces[2:]
+
+    if "id" in extra:
+        extra.remove("id")
 
     lat = (
         df.get_data(data_selector(lat_lon))
@@ -193,7 +196,6 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
             [
                 "<b>" + key.capitalize() + "</b>: %{customdata[" + str(i) + "]}"
                 for i, key in enumerate(extra)
-                if key != "id"
             ]
         )
         + "<extra></extra>"
@@ -235,11 +237,22 @@ def _create_timeseries(
 
     fig = go.Figure()
     df = _get_df(plot_config.source)
-    for i in range(1, len(plot_config.traces)):
-        trace = plot_config.traces[i]
+
+    traces = plot_config.traces
+
+    if "id" in traces:
+        traces.remove("id")
+
+    dateObserved_index = traces.index("dateObserved")
+
+    for i in range(len(traces)):
+        if i == dateObserved_index:
+            continue
+
+        trace = traces[i]
         x = (
             df.get_data(
-                get_data(plot_config.traces[0]),
+                get_data(traces[dateObserved_index]),
                 filter=filter_data(filter_col, filter_value) if filter_value else None,
             ).to_series()
             # .sort()
@@ -272,10 +285,21 @@ def _create_xy_chart(
 
     fig = go.Figure()
     df = _get_df(plot_config.source)
-    for i in range(1, len(plot_config.traces)):
-        trace = plot_config.traces[i]
+
+    traces = plot_config.traces
+
+    if "id" in traces:
+        traces.remove("id")
+
+    dateObserved_index = traces.index("dateObserved")
+
+    for i in range(len(plot_config.traces)):
+        if i == dateObserved_index:
+            continue
+
+        trace = traces[i]
         x = df.get_data(
-            get_data(plot_config.traces[0]),
+            get_data(traces[dateObserved_index]),
             filter=filter_data(filter_col, filter_value) if filter_value else None,
         ).to_series()
         y = df.get_data(
@@ -316,11 +340,22 @@ def _create_bar_chart(
 
     fig = go.Figure()
     df = _get_df(plot_config.source)
-    for i in range(1, len(plot_config.traces)):
-        trace = plot_config.traces[i]
+
+    traces = plot_config.traces
+
+    if "id" in traces:
+        traces.remove("id")
+
+    dateObserved_index = traces.index("dateObserved")
+
+    for i in range(len(plot_config.traces)):
+        if i == dateObserved_index:
+            continue
+
+        trace = traces[i]
         x = (
             df.get_data(
-                get_data(plot_config.traces[0]),
+                get_data(traces[dateObserved_index]),
                 filter=filter_data(filter_col, filter_value) if filter_value else None,
             )
             .to_series()
@@ -358,6 +393,12 @@ def _create_pie_chart(
     df = _get_df(plot_config.source)
     values = []
     labels = plot_config.traces
+
+    traces = plot_config.traces
+
+    if "id" in traces:
+        traces.remove("id")
+
     for trace in plot_config.traces:
         values.append(
             df.get_data(
