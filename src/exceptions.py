@@ -35,3 +35,11 @@ def _log_error(error: str, hint: str = "", exception=None) -> None:
         message += "\n" + f"\033[92mHINT\033[0m {hint}"
 
     logger.error(message)
+
+
+class ParserException(Exception):
+    """Exception raised when a parser is not found"""
+
+
+class NotNeeded(Exception):
+    """Exception raised when a value is not needed."""

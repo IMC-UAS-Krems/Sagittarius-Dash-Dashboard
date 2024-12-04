@@ -1,10 +1,13 @@
 # NOTE: This file is not used in the project.
 import warnings
 
-warnings.warn("This file is not used in the project.", ImportWarning)
+warnings.warn(
+    "This file shouldn't be used in the runtime. Only for testing", ImportWarning
+)
+
+from jsonschema.validators import RefResolver
 
 import requests
-from jsonschema.validators import RefResolver
 
 current_url = ""
 
