@@ -1,66 +1,43 @@
-[tool.poetry]
-name = "sag-dashboard"
+[project]
+name = "sags-dash"
 version = "0.1.0"
-description = ""
-authors = ["bobokrut <egor-evlampiev@mail.ru>"]
+description = "Add your description here"
 readme = "README.md"
-packages = [{include = "sag_dashboard"}]
+requires-python = ">=3.13"
+dependencies = [
+    "asgiref>=3.8.1",
+    "dash-ag-grid>=31.3.0",
+    "dash>=2.18.2",
+    "polars>=1.16.0",
+    "uvicorn>=0.32.1",
+    "dash-table>=5.0.0",
+    "flask-login>=0.6.3",
+    "orjson>=3.10.12",
+    "pydantic>=2.10.2",
+    "python-dateutil>=2.9.0.post0",
+    "python-dotenv>=1.0.1",
+    "requests>=2.32.3",
+    "iso6709>=0.1.5",
+    "pyproject-toml>=0.1.0",
+    "plotly==6.0.0rc0",
+    "numpy>=2.1.3",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-asgiref = {version = "^3.6.0"}
-dash = {version = "^2.9.3"}
-flask = {version = "^2.2.3"}
-Werkzeug = {version = "^2.2.2"}
-iso6709 = {version = "^0.1.5"}
-orjson = {version = "^3.8.12"}
-pydantic = {version = "^1.10.7"}
-python-dotenv = {version = "^1.0.0"}
-requests = {version = "^2.30.0"}
-uvicorn = {version = "^0.22.0"}
-flask-login = "^0.6.2"
-setuptools = "^68.0.0"
-polars = "^0.19.1"
-numpy = {version = "^1.26.0", python = "<3.13"}
-python-dateutil = "^2.8.2"
-dash-ag-grid = "^2.4.0"
-
-
-[tool.poetry.group.dev.dependencies]
-black = "^23.3.0"
-pytest = "^7.3.1"
-debugpy = "^1.6.7"
-memory-profiler = "^0.61.0"
-matplotlib = "^3.7.1"
-memray = "^1.7.0"
-filprofiler = "^2023.3.1"
-isort = "^5.12.0"
-ruff = "^0.0.277"
+[dependency-groups]
+dev = [
+    "pytest>=8.3.3",
+]
 
 
-[tool.poetry.group.extra.dependencies]
-jsonschema = "^4.17.3"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-
-[tool.black]
-target-version = ["py311"]
-
-[tool.pyright]
+[tool.basedpyright]
 typeCheckingMode = "basic"
-venvPath = "/home/bobokrut/.cache/pypoetry/virtualenvs"
-venv = "sag-dashboard-pSCj5UPf-py3.11"
-pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.13"
 useLibraryCodeForTypes = true
 
-[tool.pytest.ini_options]
-addopts = "-r x"
-
 [tool.ruff]
-select = ["E", "F", "T20"]
+select = ["E", "F", "T20", "I001"]
 ignore = ["E402", "E501"]
-
+fixable = ["E", "F", "I001"]
 

@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SECRET_KEY = environ.get("SECRET_KEY")
-GEOCODING_KEY = environ.get("GEOCODING_KEY")
-FILE_PATH = environ.get("FILE_PATH")
+SECRET_KEY: str = environ.get("SECRET_KEY")
+GEOCODING_KEY: str = environ.get("GEOCODING_KEY")
+FILE_PATH: str = environ.get("FILE_PATH")
 
 if not GEOCODING_KEY:
     raise ValueError("GEOCODING_KEY is not set")
