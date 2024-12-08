@@ -74,7 +74,7 @@ def init_dash() -> None:
     """Initialize the dash app"""
 
     global dashboard
-    dashboard = create_dashboard(env.FILE_PATH)
+    dashboard = create_dashboard(env.URL_CONFIG)
     app.layout = create_layout
 
     # fit the longest selector
