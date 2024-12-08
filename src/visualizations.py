@@ -8,6 +8,7 @@ import polars as pl
 from dash import Input, Output, callback
 from plotly import graph_objects as go
 
+from requests import Response
 from requests import get as r_get
 from src.model import GeoMap, Panel
 
@@ -106,17 +107,21 @@ def _get_df(name: str):
 
 
 def _get_map_center(area: str) -> Coordinates:
-    result: list[dict[str, int]] = r_get(
+    result: Response = r_get(
         "https://nominatim.openstreetmap.org/search",
         params={"city": area, "format": "json", "limit": 1},
-    ).json()
+        headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0"
+        },
+    )
 
     if not result:
         raise ValueError(f"Could not find location for {area}")
 
+    result_json: list[dict[str, int]] = result.json()
     location: Coordinates = {
-        "lat": float(result[0]["lat"]),
-        "lon": float(result[0]["lon"]),
+        "lat": float(result_json[0]["lat"]),
+        "lon": float(result_json[0]["lon"]),
     }
     return location
 
@@ -158,8 +163,8 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
     label = plot_config.traces[1]
     extra = plot_config.traces[2:]
 
-    if "id" in extra:
-        extra.remove("id")
+    if "id" not in extra:
+        extra.append("id")
 
     lat = (
         df.get_data(data_selector(lat_lon))
@@ -204,7 +209,7 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
     if plot_config.area:
         try:
             fig.update_layout(
-                mapbox=dict(
+                map=dict(
                     center=_get_map_center(plot_config.area),
                     zoom=10,
                 )
