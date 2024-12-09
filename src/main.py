@@ -57,7 +57,7 @@ def create_layout() -> list[my_dash_component.Container | dcc.Graph]:
             my_dash_component.Navbar(
                 id="sag_navbar",
                 dashboard_name=dashboard.service.name,
-                dashboard_picture="https://www.fh-krems.ac.at/fileadmin/imc/images/logos/imc-logo-web-preview.png",
+                dashboard_picture="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQoOIx-L--QvUSC1Q382HNcLEScprHukettiQ&s",
                 dashboard_version=str(dashboard.service.version),
             ),
             my_dash_component.Grid(

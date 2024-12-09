@@ -1,16 +1,19 @@
 <!doctype html>
-<html lang='en'>
-<head>
-    <title>Simple Gallery</title>
-    <meta charset='UTF-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1, shrink-to-fit=no'/>
+<html lang="en">
+  <head>
+    <title>Sagittarius Dashboard</title>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
     <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body>
-
-<main class='p-3 d-flex flex-column align-items-center position-absolute top-50 start-50 translate-middle'>
-    {% block content %}
-    {% endblock %}
-</main>
-</body>
+  </head>
+  <body>
+    <main
+      class="p-3 d-flex flex-column align-items-center position-absolute top-50 start-50 translate-middle"
+    >
+      {% block content %} {% endblock %}
+    </main>
+  </body>
 </html>
