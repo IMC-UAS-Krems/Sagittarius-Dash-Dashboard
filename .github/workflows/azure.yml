@@ -13,13 +13,23 @@ jobs:
         - name: 'Checkout GitHub Action'
           uses: actions/checkout@main
         
+
         - name: 'Build and push image'
           uses: azure/docker-login@v1
           with:
             login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
             username: ${{ secrets.REGISTRY_USERNAME }}
             password: ${{ secrets.REGISTRY_PASSWORD }}
-        - run: |
-            docker build .  --platform linux/amd64,linux/arm64 -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/dash_dashboard:latest
-            docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/dash_dashboard:latest
 
+        - name: Set up QEMU
+          uses: docker/setup-qemu-action@v3
+
+        - name: Set up Docker Buildx
+          uses: docker/setup-buildx-action@v3
+
+        - name: Build and push
+          uses: docker/build-push-action@v6
+          with:
+            platforms: linux/amd64,linux/arm64
+            push: true
+            tags: ${{ secrets.REGISTRY_LOGIN_SERVER }}/dash_dashboard:latest
