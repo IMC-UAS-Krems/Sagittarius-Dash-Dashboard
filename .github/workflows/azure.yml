@@ -20,6 +20,6 @@ jobs:
             username: ${{ secrets.REGISTRY_USERNAME }}
             password: ${{ secrets.REGISTRY_PASSWORD }}
         - run: |
-            docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/dash_dashboard:latest
+            docker build .  --platform linux/amd64,linux/arm64 -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/dash_dashboard:latest
             docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/dash_dashboard:latest
 
