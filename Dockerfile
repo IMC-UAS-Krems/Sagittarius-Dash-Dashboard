@@ -22,9 +22,6 @@ ENV PIP_DEFAULT_TIMEOUT=100 \
 
 COPY requirements.txt .
 
-# only for new macs, see https://docs.pola.rs/user-guide/installation/
-RUN if [ "$(uname -m)" != "x86_64" ]; then apt-get update && apt-get install -y sed && sed -i "s/^polars=/polars-lts-cpu=/" requirements.txt; fi
-
 RUN python -m venv /venv && . /venv/bin/activate && pip install -r requirements.txt
 
 FROM base as final
