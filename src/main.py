@@ -18,6 +18,7 @@ def create_grid() -> list[my_dash_component.Container | dcc.Graph]:
     """Create the html grid for the dashboard. This grid contains all visualizations"""
 
     grid = []
+
     for grid_item in dashboard.plots:
         if grid_item.with_callback:
             grid.append(
