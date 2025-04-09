@@ -266,6 +266,11 @@ def _create_timeseries(
             get_data(trace),
             filter=filter_data(filter_col, filter_value) if filter_value else None,
         ).to_series()
+        
+        # Remove fully null columns, skip traces with all null values
+        if y.null_count() == y.len():
+            continue
+        
         fig.add_scatter(
             x=x,
             y=y,
@@ -311,6 +316,11 @@ def _create_xy_chart(
             get_data(trace),
             filter=filter_data(filter_col, filter_value) if filter_value else None,
         ).to_series()
+        
+        # Remove fully null columns, skip traces with all null values
+        if y.null_count() == y.len():
+            continue
+        
         fig.add_scatter(
             x=x,
             y=y,
@@ -372,6 +382,10 @@ def _create_bar_chart(
             if filter_value
             else None,
         ).to_series()
+        
+        # Remove fully null columns, skip traces with all null values
+        if y.null_count() == y.len():
+            continue
 
         fig.add_bar(
             x=x,
@@ -397,7 +411,7 @@ def _create_pie_chart(
     fig = go.Figure()
     df = _get_df(plot_config.source)
     values = []
-    labels = plot_config.traces
+    labels = []
 
     traces = plot_config.traces
 
@@ -405,14 +419,20 @@ def _create_pie_chart(
         traces.remove("id")
 
     for trace in plot_config.traces:
-        values.append(
+        series = (
             df.get_data(
                 get_data(trace),
                 filter=filter_data(filter_col, filter_value) if filter_value else None,
             )
             .to_series()
-            .sum()
         )
+        # Remove fully null columns, skip traces with all null values
+        if series.null_count() == series.len():
+            continue
+
+        values.append(series.sum())
+        labels.append(trace)
+        
     fig.add_pie(values=values, labels=labels, hole=0.3)
     __apply_default_layout(fig, plot_name)
     return fig
