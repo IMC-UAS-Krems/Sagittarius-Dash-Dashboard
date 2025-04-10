@@ -117,7 +117,8 @@ class FiwareDatasource:
             raise ValueError("No data received")
 
         data_list: list[list[Any]] = self._parse(all_data, self._source.query.select)
-        df = pl.DataFrame(data_list, schema=self._source.query.select)
+        df = pl.DataFrame(data_list, schema=self._source.query.select, orient="row", infer_schema_length=None)
+
         return df
     
 
