@@ -176,3 +176,5 @@ config2.json
 config3.json
 poetry.lock
 /tailwind.css
+
+.DS_Store

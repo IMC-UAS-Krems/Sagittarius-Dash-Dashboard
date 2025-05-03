@@ -6,8 +6,10 @@ from flask import Flask
 from flask_login import login_required
 
 from .env import SECRET_KEY
-from .user_auth import auth, login_manager
 from .utils import create_logger
+from .auth import init_auth
+from .auth.utils import setup_auth_db
+from .auth.routes import auth_blueprint
 
 server = Flask(
     __name__,
@@ -42,9 +44,20 @@ def _setup_server() -> None:
     """Registers blueprints and sets up login_manager"""
 
     server.config["SECRET_KEY"] = SECRET_KEY
-    server.register_blueprint(auth)
-    login_manager.init_app(server)
-    login_manager.login_view = "auth.login_get"
+    
+    server.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////app/users.db"
+    server.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    server.config["LOGIN_DISABLED"] = False
+    server.config["APPLICATION_ROOT"] = "/"
+    server.config["PREFERRED_URL_SCHEME"] = "http"
+    
+    # define route bp's here
+    server.register_blueprint(auth_blueprint)
+    
+    init_auth(server)
+    setup_auth_db(server)
+    app.logger.info(f"Db is in {os.path.abspath('users.db')}")
 
 
 def setup() -> None:
@@ -52,5 +65,6 @@ def setup() -> None:
 
     logger = create_logger("dash_app")
     logger.setLevel(logging.DEBUG if os.environ.get("DEBUG") else logging.INFO)
-    _secure_dash()
     _setup_server()
+    _secure_dash()
+    
