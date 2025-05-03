@@ -1,6 +1,21 @@
 # AUTO GENERATED FILE - DO NOT EDIT
 
+import typing  # noqa: F401
+from typing_extensions import TypedDict, NotRequired, Literal # noqa: F401
 from dash.development.base_component import Component, _explicitize_args
+
+ComponentType = typing.Union[
+    str,
+    int,
+    float,
+    Component,
+    None,
+    typing.Sequence[typing.Union[str, int, float, Component, None]],
+]
+
+NumberType = typing.Union[
+    typing.SupportsFloat, typing.SupportsInt, typing.SupportsComplex
+]
 
 
 class Navbar(Component):
@@ -16,16 +31,27 @@ Keyword arguments:
 
 - dashboard_picture (string; required)
 
-- dashboard_version (string; required)"""
+- dashboard_version (string; required)
+
+- is_admin (boolean; default False)"""
     _children_props = []
     _base_nodes = ['children']
     _namespace = 'my_dash_component'
     _type = 'Navbar'
-    @_explicitize_args
-    def __init__(self, dashboard_name=Component.REQUIRED, dashboard_picture=Component.REQUIRED, dashboard_version=Component.REQUIRED, id=Component.UNDEFINED, **kwargs):
-        self._prop_names = ['id', 'dashboard_name', 'dashboard_picture', 'dashboard_version']
+
+
+    def __init__(
+        self,
+        dashboard_name: typing.Optional[str] = None,
+        dashboard_picture: typing.Optional[str] = None,
+        dashboard_version: typing.Optional[str] = None,
+        is_admin: typing.Optional[bool] = None,
+        id: typing.Optional[typing.Union[str, dict]] = None,
+        **kwargs
+    ):
+        self._prop_names = ['id', 'dashboard_name', 'dashboard_picture', 'dashboard_version', 'is_admin']
         self._valid_wildcard_attributes =            []
-        self.available_properties = ['id', 'dashboard_name', 'dashboard_picture', 'dashboard_version']
+        self.available_properties = ['id', 'dashboard_name', 'dashboard_picture', 'dashboard_version', 'is_admin']
         self.available_wildcard_properties =            []
         _explicit_args = kwargs.pop('_explicit_args')
         _locals = locals()
@@ -38,3 +64,5 @@ Keyword arguments:
                     'Required argument `' + k + '` was not specified.')
 
         super(Navbar, self).__init__(**args)
+
+setattr(Navbar, "__init__", _explicitize_args(Navbar.__init__))

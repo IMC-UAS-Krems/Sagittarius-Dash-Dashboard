@@ -1,6 +1,21 @@
 # AUTO GENERATED FILE - DO NOT EDIT
 
+import typing  # noqa: F401
+from typing_extensions import TypedDict, NotRequired, Literal # noqa: F401
 from dash.development.base_component import Component, _explicitize_args
+
+ComponentType = typing.Union[
+    str,
+    int,
+    float,
+    Component,
+    None,
+    typing.Sequence[typing.Union[str, int, float, Component, None]],
+]
+
+NumberType = typing.Union[
+    typing.SupportsFloat, typing.SupportsInt, typing.SupportsComplex
+]
 
 
 class Grid(Component):
@@ -21,8 +36,16 @@ Keyword arguments:
     _base_nodes = ['graths', 'selector', 'children']
     _namespace = 'my_dash_component'
     _type = 'Grid'
-    @_explicitize_args
-    def __init__(self, graths=Component.REQUIRED, selector=Component.REQUIRED, hash=Component.REQUIRED, id=Component.UNDEFINED, **kwargs):
+
+
+    def __init__(
+        self,
+        graths: typing.Optional[typing.Sequence[ComponentType]] = None,
+        selector: typing.Optional[ComponentType] = None,
+        hash: typing.Optional[str] = None,
+        id: typing.Optional[typing.Union[str, dict]] = None,
+        **kwargs
+    ):
         self._prop_names = ['id', 'graths', 'hash', 'selector']
         self._valid_wildcard_attributes =            []
         self.available_properties = ['id', 'graths', 'hash', 'selector']
@@ -38,3 +61,5 @@ Keyword arguments:
                     'Required argument `' + k + '` was not specified.')
 
         super(Grid, self).__init__(**args)
+
+setattr(Grid, "__init__", _explicitize_args(Grid.__init__))
