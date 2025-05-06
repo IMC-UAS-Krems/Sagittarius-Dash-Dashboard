@@ -34,7 +34,8 @@ class GeoMap(BaseModel):
     type: Literal["geomap"]
     source: str
     traces: list[str] = Field(alias="data")  # TODO: fix this
-    area: str | None = Field(None)  # center coordinates (https://nominatim.org/)
+    # center coordinates (https://nominatim.org/)
+    area: str | None = Field(None)
     color_by: str | None = Field(None)  # color by field
 
 
@@ -43,12 +44,14 @@ class PieChart(BaseModel):
     source: str
     traces: list[str]
     pie_chart_type: str | None = Field(None)
+    reduce: str | None = Field(None)
 
 
 class BarChart(BaseModel):
     type: Literal["bar_chart"]
     source: str
     traces: list[str]  # first trace is x axis
+    reduce: str | None = None
 
 
 class TimeSeries(BaseModel):
