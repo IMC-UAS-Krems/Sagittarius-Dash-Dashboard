@@ -3,10 +3,12 @@ from __future__ import annotations
 import logging
 import textwrap
 from typing import Literal
+from itertools import cycle
 
 import polars as pl
 from dash import Input, Output, callback
 from plotly import graph_objects as go
+from plotly.colors import sample_colorscale
 
 from requests import Response
 from requests import get as r_get
@@ -17,7 +19,7 @@ from .requests import DataSources, Filter, Selector
 logger = logging.getLogger("dash_app")
 
 VisualizationType = Literal[
-    "timeseries", "xy_chart", "bar_chart", "pie_chart", "geomap"
+    "timeseries", "xy_chart", "bar_chart", "pie_chart", "boolean_pie", "geomap"
 ]
 
 type Coordinates = dict[Literal["lat", "lon"], float]
@@ -142,6 +144,8 @@ def _get_map_center(area: str) -> Coordinates:
 
 
 def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
+    print("\n\n----\nCreating map with config:", plot_config)
+
     def data_selector(path) -> Selector:
         return lambda df: df.unique(subset="id", maintain_order=True).select(
             pl.col(path)
@@ -179,6 +183,23 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
     custom_data = df.get_data(custom_data_selector(extra)).rows()
     hover_text = df.get_data(data_selector(label)).to_series().to_list()
 
+    # After you get your DataFrame and unique extra data...
+    unique_texts = df.get_data(lambda df: df.select(
+        pl.col("TEXT"))).to_series().unique()
+    print("\n\n----\nUnique texts:", unique_texts)
+    # Generate a continuous scale of colors for all unique texts:
+    num_colors = len(unique_texts)
+    # If you have at least 2 colors, spread independent values between 0 and 1.
+    scale_values = [i / (num_colors - 1)
+                    for i in range(num_colors)] if num_colors > 1 else [0]
+    colors = sample_colorscale("Viridis", scale_values)
+    color_map = {text: color for text, color in zip(unique_texts, colors)}
+    print("\n\n----\nColor map:", color_map)
+
+    # Then when constructing your map markers:
+    custom_texts = df.get_data(data_selector("TEXT")).to_series().to_list()
+    colors = [color_map.get(text, "gray") for text in custom_texts]
+
     fig = go.Figure(
         go.Scattermap(
             lat=lat,
@@ -186,6 +207,7 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
             mode="markers",
             customdata=custom_data,
             hovertext=hover_text,
+            marker=dict(color=colors, size=10)
         )
     )
     # set mapbox_style
@@ -199,7 +221,8 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
         hovertemplate="<b>%{hovertext}</b><br><br>"
         + "<br>".join(
             [
-                "<b>" + key.capitalize() + "</b>: %{customdata[" + str(i) + "]}"
+                "<b>" + key.capitalize() +
+                "</b>: %{customdata[" + str(i) + "]}"
                 for i, key in enumerate(extra)
             ]
         )
@@ -222,7 +245,8 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
 def __apply_default_layout(fig: go.Figure, title: str):
     fig.update_layout(
         title=title,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(orientation="h", yanchor="bottom",
+                    y=1.02, xanchor="right", x=1),
         showlegend=True,
         margin=dict(l=20, r=60, t=40, b=20),
     )
@@ -258,19 +282,21 @@ def _create_timeseries(
         x = (
             df.get_data(
                 get_data(traces[dateObserved_index]),
-                filter=filter_data(filter_col, filter_value) if filter_value else None,
+                filter=filter_data(
+                    filter_col, filter_value) if filter_value else None,
             ).to_series()
             # .sort()
         )
         y = df.get_data(
             get_data(trace),
-            filter=filter_data(filter_col, filter_value) if filter_value else None,
+            filter=filter_data(
+                filter_col, filter_value) if filter_value else None,
         ).to_series()
-        
+
         # Remove fully null columns, skip traces with all null values
         if y.null_count() == y.len():
             continue
-        
+
         fig.add_scatter(
             x=x,
             y=y,
@@ -310,17 +336,19 @@ def _create_xy_chart(
         trace = traces[i]
         x = df.get_data(
             get_data(traces[dateObserved_index]),
-            filter=filter_data(filter_col, filter_value) if filter_value else None,
+            filter=filter_data(
+                filter_col, filter_value) if filter_value else None,
         ).to_series()
         y = df.get_data(
             get_data(trace),
-            filter=filter_data(filter_col, filter_value) if filter_value else None,
+            filter=filter_data(
+                filter_col, filter_value) if filter_value else None,
         ).to_series()
-        
+
         # Remove fully null columns, skip traces with all null values
         if y.null_count() == y.len():
             continue
-        
+
         fig.add_scatter(
             x=x,
             y=y,
@@ -371,7 +399,8 @@ def _create_bar_chart(
         x = (
             df.get_data(
                 get_data(traces[dateObserved_index]),
-                filter=filter_data(filter_col, filter_value) if filter_value else None,
+                filter=filter_data(
+                    filter_col, filter_value) if filter_value else None,
             )
             .to_series()
             .sort()
@@ -382,7 +411,7 @@ def _create_bar_chart(
             if filter_value
             else None,
         ).to_series()
-        
+
         # Remove fully null columns, skip traces with all null values
         if y.null_count() == y.len():
             continue
@@ -413,26 +442,54 @@ def _create_pie_chart(
     values = []
     labels = []
 
-    traces = plot_config.traces
-
+    # Work on a copy so we don't modify the original list.
+    traces = list(plot_config.traces)
     if "id" in traces:
         traces.remove("id")
 
-    for trace in plot_config.traces:
-        series = (
-            df.get_data(
-                get_data(trace),
-                filter=filter_data(filter_col, filter_value) if filter_value else None,
-            )
-            .to_series()
-        )
-        # Remove fully null columns, skip traces with all null values
-        if series.null_count() == series.len():
-            continue
+    # If there are no traces, bail out.
+    if not traces:
+        __apply_default_layout(fig, plot_name)
+        return fig
 
-        values.append(series.sum())
-        labels.append(trace)
-        
+    # Use the first trace to determine type: get its series
+    first_series = df.get_data(
+        get_data(traces[0]),
+        filter=filter_data(filter_col, filter_value) if filter_value else None,
+    ).to_series()
+
+    print("\n\n------\nCreating pie chart with series:", first_series)
+    if len(first_series) > 0 and isinstance(first_series[0], bool):
+        print("\n--- Pie chart is boolean ---\n")
+
+        # Boolean mode: for each trace, use the boolean value.
+        for trace in traces:
+            series = df.get_data(
+                get_data(trace),
+                filter=filter_data(
+                    filter_col, filter_value) if filter_value else None,
+            ).to_series()
+            # Skip if series is all null
+            if series.null_count() == series.len():
+                continue
+            true_count = series.sum()  # booleans sum: True becomes 1 and False becomes 0
+            if true_count > 0:
+                values.append(true_count)
+                labels.append(trace)
+    else:
+        # Numeric mode: aggregate using sum
+        print("\n--- Pie chart is numeric ---\n")
+        for trace in traces:
+            series = df.get_data(
+                get_data(trace),
+                filter=filter_data(
+                    filter_col, filter_value) if filter_value else None,
+            ).to_series()
+            if series.null_count() == series.len():
+                continue
+            values.append(series.sum())
+            labels.append(trace)
+
     fig.add_pie(values=values, labels=labels, hole=0.3)
     __apply_default_layout(fig, plot_name)
     return fig

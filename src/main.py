@@ -41,7 +41,8 @@ def create_grid() -> list[my_dash_component.Container | dcc.Graph]:
             )
 
     for grid_item in dashboard.tables:
-        grid.append(html.Div(className="w-full h-full pb-1.5", children=grid_item))
+        grid.append(
+            html.Div(className="w-full h-full pb-1.5", children=grid_item))
 
     return grid
 
@@ -75,6 +76,8 @@ def init_dash() -> None:
     """Initialize the dash app"""
 
     global dashboard
+    print("\n-----------------------------\nInitializing dash app with URL_CONFIG:",
+          env.URL_CONFIG, "\n---------------------------\n")
     dashboard = create_dashboard(env.URL_CONFIG)
     app.layout = create_layout
 

@@ -1,4 +1,4 @@
-FROM python:3.13.0-slim as base
+FROM python:3.13.0-slim AS base
 
 ARG geocode_key
 ARG secret
@@ -13,7 +13,7 @@ ENV PYTHONFAULTHANDLER=1 \
 WORKDIR /app
 
 
-FROM base as builder
+FROM base AS builder
 
 
 ENV PIP_DEFAULT_TIMEOUT=100 \
@@ -24,7 +24,7 @@ COPY requirements.txt .
 
 RUN python -m venv /venv && . /venv/bin/activate && pip install -r requirements.txt
 
-FROM base as final
+FROM base AS final
 
 COPY . .
 
