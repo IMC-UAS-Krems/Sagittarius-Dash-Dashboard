@@ -183,22 +183,48 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
     custom_data = df.get_data(custom_data_selector(extra)).rows()
     hover_text = df.get_data(data_selector(label)).to_series().to_list()
 
-    # After you get your DataFrame and unique extra data...
-    unique_texts = df.get_data(lambda df: df.select(
-        pl.col("TEXT"))).to_series().unique()
-    print("\n\n----\nUnique texts:", unique_texts)
-    # Generate a continuous scale of colors for all unique texts:
-    num_colors = len(unique_texts)
-    # If you have at least 2 colors, spread independent values between 0 and 1.
-    scale_values = [i / (num_colors - 1)
-                    for i in range(num_colors)] if num_colors > 1 else [0]
-    colors = sample_colorscale("Viridis", scale_values)
-    color_map = {text: color for text, color in zip(unique_texts, colors)}
-    print("\n\n----\nColor map:", color_map)
+    marker_config = dict(size=10)  # Default marker configuration
+    if plot_config.color_by:
+        color_by_column = plot_config.color_by
+        logger.info(
+            f"Attempting to color map '{plot_name}' by column: '{color_by_column}'")
+        try:
+            # Get unique categories from the specified column for the color map
+            # This selects from the whole dataframe to get all possible categories
+            unique_categories_series = df.get_data(lambda df_lambda: df_lambda.select(
+                pl.col(color_by_column))).to_series().drop_nulls().unique()
 
-    # Then when constructing your map markers:
-    custom_texts = df.get_data(data_selector("TEXT")).to_series().to_list()
-    colors = [color_map.get(text, "gray") for text in custom_texts]
+            if not unique_categories_series.is_empty():
+                unique_categories = unique_categories_series.to_list()
+                num_colors = len(unique_categories)
+                scale_values = [i / (num_colors - 1) for i in range(num_colors)
+                                # Use 0.5 for single color
+                                ] if num_colors > 1 else [0.5]
+
+                # Use a perceptually uniform colorscale like Viridis or Plasma
+                category_colors_list = sample_colorscale(
+                    "Viridis", scale_values)
+
+                color_map = {category: color for category, color in zip(
+                    unique_categories, category_colors_list)}
+
+                # Get the actual category values for each point (using data_selector for unique points)
+                point_categories = df.get_data(data_selector(
+                    color_by_column)).to_series().to_list()
+
+                # Default to semi-transparent gray
+                marker_colors_list = [color_map.get(
+                    category, "rgba(128,128,128,0.5)") for category in point_categories]
+                marker_config['color'] = marker_colors_list
+                logger.info(
+                    f"Successfully applied colors based on '{color_by_column}'. Color map: {color_map}")
+            else:
+                logger.warning(
+                    f"Column '{color_by_column}' for coloring in map '{plot_name}' is empty, all nulls, or not found. Using default marker color.")
+        except Exception as e:
+            logger.error(
+                f"Failed to apply coloring by column '{color_by_column}' for map '{plot_name}': {e}. Using default marker color.")
+            # Fallback to default marker if coloring fails, marker_config remains as default
 
     fig = go.Figure(
         go.Scattermap(
@@ -207,7 +233,7 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
             mode="markers",
             customdata=custom_data,
             hovertext=hover_text,
-            marker=dict(color=colors, size=10)
+            marker=marker_config
         )
     )
     # set mapbox_style

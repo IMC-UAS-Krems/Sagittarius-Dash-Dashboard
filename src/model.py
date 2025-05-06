@@ -35,6 +35,7 @@ class GeoMap(BaseModel):
     source: str
     traces: list[str] = Field(alias="data")  # TODO: fix this
     area: str | None = Field(None)  # center coordinates (https://nominatim.org/)
+    color_by: str | None = Field(None)  # color by field
 
 
 class PieChart(BaseModel):
