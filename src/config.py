@@ -13,7 +13,9 @@ from src.model import Config, GeoMap, Panel, Service
 from src.requests import DataSources, Selector
 
 from .exceptions import ConfigError
-from .visualizations import make_map, make_plot_with_callback
+from .visualizations.registry import create_visualization
+from .visualizations.callbacks import make_plot_with_callback
+
 
 logger = logging.getLogger("dash_app")
 type Url = str
@@ -105,7 +107,7 @@ def _parse_plots_config(
 
 def _parse_plots_config_map(plot_name: str, plot: GeoMap) -> GridItem:
     return GridItem(
-        plot=make_map(plot_name, plot),
+        plot=create_visualization("geomap", plot_name, plot).create(),
         plot_id="sag-map",
     )
 

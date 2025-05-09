@@ -8,6 +8,9 @@ from typing import Optional as _Optional
 
 
 def p(arg=None):
+    """
+    A simple function to print the file name and line number of the caller.
+    """
     root = _os.path.abspath(_os.curdir)
     frame = _inspect.currentframe()
 
@@ -32,6 +35,14 @@ def p(arg=None):
 
 
 def create_logger(name: str, with_file=False) -> _logging.Logger:
+    """
+    Create a logger with the given name and optional file handler.
+    Args:
+        name (str): The name of the logger
+        with_file (bool): Whether to add a file handler to the logger
+    Returns:
+        _logging.Logger: The created logger
+    """
     logger = _logging.getLogger(name)
     logger.setLevel(_logging.INFO)
     stream_handler = _logging.StreamHandler(_sys.stdout)
@@ -56,6 +67,14 @@ def create_logger(name: str, with_file=False) -> _logging.Logger:
 
 
 def _colorize(message: str, color: str) -> str:
+    """
+    Colorizes the given message with the specified color.
+    Args:
+        message (str): The message to colorize
+        color (str): The color to use
+    Returns:
+        str: The colorized message
+    """
     if color == "red":
         return "\033[91m" + message + "\033[0m"
 
@@ -104,6 +123,14 @@ class _ColourizedFormatter(_logging.Formatter):
         super().__init__(fmt=fmt, datefmt=datefmt, style=style)
 
     def color_level_name(self, level_name: str, level_no: int) -> str:
+        """
+        Colorizes the level name based on the level number.
+        Args:
+            level_name (str): The name of the log level
+            level_no (int): The numeric value of the log level
+            Returns:
+                str: The colorized level name
+            """
         def default(level_name: str) -> str:
             return str(level_name)
 
@@ -111,6 +138,13 @@ class _ColourizedFormatter(_logging.Formatter):
         return func(level_name)
 
     def formatMessage(self, record: _logging.LogRecord) -> str:
+        """
+        Formats the log message with colorized level name and custom message if provided.
+        Args:
+            record (_logging.LogRecord): The log record to format
+            Returns:
+                str: The formatted log message
+        """
         recordcopy = _copy(record)
         levelname = recordcopy.levelname
         seperator = " " * (8 - len(recordcopy.levelname))
