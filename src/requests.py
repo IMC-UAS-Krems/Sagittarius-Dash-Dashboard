@@ -175,6 +175,19 @@ class FiwareDatasource:
                     Position(lon=lon, lat=lat)
                     for lon, lat in location["value"]["coordinates"][0]
                 ]
+            # case "MultiPolygon":
+            #     return [
+            #         [Position(lon=p[0], lat=p[1]) for p in polygon[0]]
+            #         for polygon in location["value"]["coordinates"]
+            #     ]
+            case "MultiPolygon":
+                return [
+                    [
+                        [Position(lon=p[0], lat=p[1]) for p in ring]
+                        for ring in polygon  # Iterate over ALL rings in this polygon
+                    ]
+                    for polygon in location["value"]["coordinates"]
+                ]
             case "MultiPoint":
                 return [
                     Position(lon=lon, lat=lat)

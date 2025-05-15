@@ -146,6 +146,7 @@ def _get_map_center(area: str) -> Coordinates:
 def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
     print("\n\n----\nCreating map with config:", plot_config)
 
+    # --- HELPER FUNCTIONS ---
     def data_selector(path) -> Selector:
         return lambda df: df.unique(subset="id", maintain_order=True).select(
             pl.col(path)
@@ -161,100 +162,159 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
                 (pl.all().map_elements(lambda x: "<br>".join(textwrap.wrap(x, 40))))
             )
         )
+    # --- HELPER FUNCTIONS ---
 
-    df = _get_df(plot_config.source)
+    # --- GET DATA - General ---
+    df = _get_df(plot_config.source)  # FiwareDatasource object
+    print("Traces:", plot_config.traces)  # ['wind
     lat_lon = plot_config.traces[0]
     label = plot_config.traces[1]
     extra = plot_config.traces[2:]
-
     if "id" not in extra:
         extra.append("id")
-
-    lat = (
-        df.get_data(data_selector(lat_lon))
-        .to_series()
-        .map_elements(lambda x: x[0], return_dtype=pl.Float32)
-    )
-    lon = (
-        df.get_data(data_selector(lat_lon))
-        .to_series()
-        .map_elements(lambda x: x[1], return_dtype=pl.Float32)
-    )
     custom_data = df.get_data(custom_data_selector(extra)).rows()
     hover_text = df.get_data(data_selector(label)).to_series().to_list()
+    # --- GET DATA - General ---
 
-    marker_config = dict(size=10)  # Default marker configuration
-    if plot_config.color_by:
-        color_by_column = plot_config.color_by
-        logger.info(
-            f"Attempting to color map '{plot_name}' by column: '{color_by_column}'")
-        try:
-            # Get unique categories from the specified column for the color map
-            # This selects from the whole dataframe to get all possible categories
-            unique_categories_series = df.get_data(lambda df_lambda: df_lambda.select(
-                pl.col(color_by_column))).to_series().drop_nulls().unique()
+    # --- INSTANTIATE FIGURE - MODIFY IT BASED ON GEMOETRY_TYPE ---
+    fig = go.Figure()
+    geometry_type = getattr(plot_config, "geometry_type", "point")
+    if geometry_type == "polygon":
+        polygons = df.get_data(data_selector(lat_lon)).to_series().to_list()
 
-            if not unique_categories_series.is_empty():
-                unique_categories = unique_categories_series.to_list()
-                num_colors = len(unique_categories)
-                scale_values = [i / (num_colors - 1) for i in range(num_colors)
-                                # Use 0.5 for single color
-                                ] if num_colors > 1 else [0.5]
+        # --- Cut to 50 polygons for display ---
+        if len(polygons) > 50:
+            print(
+                f"Warning: More than 50 polygons detected. ({len(polygons)} polygons)")
+            polygons = polygons[:50]
+        # print("Custom data:", custom_data[0])  # (id,)
+        # print("Hover text:", hover_text[0])  # Correct
 
-                # Use a perceptually uniform colorscale like Viridis or Plasma
-                category_colors_list = sample_colorscale(
-                    "Viridis", scale_values)
+        # --- Add polygons as Traces ---
+        for i, poly in enumerate(polygons):
+            if not poly:
+                continue
+            lats = [vertex[0] for vertex in poly]
+            lons = [vertex[1] for vertex in poly]
+            fig.add_trace(
+                go.Scattermap(
+                    lat=lats,
+                    lon=lons,
+                    mode="lines",
+                    fill="toself",
+                    # name=hover_text[i],
+                    hovertemplate=f"<b>{hover_text[i]}</b><br><br>" + "<br>".join(
+                        [f"<b>{extra[j]}</b>: {custom_data[i][j]}" for j in range(len(custom_data[i]))]) + "<extra></extra>"
+                )
+            )
 
-                color_map = {category: color for category, color in zip(
-                    unique_categories, category_colors_list)}
+    # --- GEOMETRY_TYPE = `multiplygon` ---
+    elif geometry_type == "multipolygon":
+        mpolygons = df.get_data(data_selector(lat_lon)).to_series().to_list()
 
-                # Get the actual category values for each point (using data_selector for unique points)
-                point_categories = df.get_data(data_selector(
-                    color_by_column)).to_series().to_list()
+        # --- Cut to 50 polygons for display ---
+        print("\n---\nTrying to create map with multipolygons")
+        if len(mpolygons) > 50:
+            print(
+                f"Warning: >50 multipolygons ({len(mpolygons)}). Showing first 50.")
+            mpolygons = mpolygons[:50]
 
-                # Default to semi-transparent gray
-                marker_colors_list = [color_map.get(
-                    category, "rgba(128,128,128,0.5)") for category in point_categories]
-                marker_config['color'] = marker_colors_list
-                logger.info(
-                    f"Successfully applied colors based on '{color_by_column}'. Color map: {color_map}")
-            else:
-                logger.warning(
-                    f"Column '{color_by_column}' for coloring in map '{plot_name}' is empty, all nulls, or not found. Using default marker color.")
-        except Exception as e:
-            logger.error(
-                f"Failed to apply coloring by column '{color_by_column}' for map '{plot_name}': {e}. Using default marker color.")
-            # Fallback to default marker if coloring fails, marker_config remains as default
+        # --- Add multipolygons as Traces ---
+        for i, mpoly in enumerate(mpolygons):
+            if not mpoly:
+                continue
 
-    fig = go.Figure(
-        go.Scattermap(
-            lat=lat,
-            lon=lon,
-            mode="markers",
-            customdata=custom_data,
-            hovertext=hover_text,
-            marker=marker_config
+            lats, lons = [], []
+            # Each mpoly is a list of Polygons; each Polygon is a list of rings
+            for polygon in mpoly:
+                for ring in polygon:
+                    for vertex in ring:
+                        lats.append(vertex[0])
+                        lons.append(vertex[1])
+                    # break before next ring
+                    lats.append(None)
+                    lons.append(None)
+
+            # print("Adding multipolygon", i, "with", len(
+            #     lats), "vertices\nCustom data:", custom_data[i], "\nHover text:", hover_text[i])
+            fig.add_trace(
+                go.Scattermap(
+                    lat=lats,
+                    lon=lons,
+                    mode="lines",
+                    fill="toself",
+                    name=hover_text[i],
+                    hovertemplate=f"<b>{hover_text[i]}</b><br><br>" + "<br>".join(
+                        [f"<b>{extra[j]}</b>: {custom_data[i][j]}" for j in range(len(custom_data[i]))]) + "<extra></extra>"
+                )
+            )
+
+    # --- GEOMETRY_TYPE = `point` - DEFAULT ---
+    else:
+        lat = df.get_data(data_selector(lat_lon)).to_series() \
+                .map_elements(lambda x: x[0], return_dtype=pl.Float32)
+        lon = df.get_data(data_selector(lat_lon)).to_series() \
+                .map_elements(lambda x: x[1], return_dtype=pl.Float32)
+
+        # --- `color_by` map ---
+        if plot_config.color_by:
+            # find unique categories
+            point_cats = df.get_data(data_selector(plot_config.color_by)) \
+                .to_series().to_list()
+            unique_cats = [c for c in sorted(set(point_cats)) if c is not None]
+            for cat in unique_cats:
+                idxs = [i for i, c in enumerate(point_cats) if c == cat]
+                fig.add_trace(
+                    go.Scattermap(
+                        lat=[lat[i] for i in idxs],
+                        lon=[lon[i] for i in idxs],
+                        mode="markers",
+                        marker=dict(size=10),
+                        customdata=[custom_data[i] for i in idxs],
+                        hovertext=[hover_text[i] for i in idxs],
+                        name=str(cat),  # legend entry
+                    )
+                )
+
+        # --- No `color_by` - single trace ---
+        else:
+            # single‐trace fallback
+            fig.add_trace(
+                go.Scattermap(
+                    lat=lat,
+                    lon=lon,
+                    mode="markers",
+                    marker=dict(size=10),
+                    customdata=custom_data,
+                    hovertext=hover_text,
+                    name=plot_name,
+                )
+            )
+
+        fig.update_traces(
+            hovertemplate="<b>%{hovertext}</b><br><br>"
+            + "<br>".join(
+                [
+                    "<b>" + key.capitalize() +
+                    "</b>: %{customdata[" + str(i) + "]}"
+                    for i, key in enumerate(extra)
+                ]
+            )
+            + "<extra></extra>"
         )
-    )
-    # set mapbox_style
+        # --- No `color_by` - single trace ---
+
+    # --- EXTRA COMMON SETTINGS ---
+    # - layout
+    # - map center, zoom
+    # - legend position
     fig.update_layout(
         mapbox_style="carto-positron",
         margin=dict(l=10, r=10, t=40, b=10),
         title=plot_name,
     )
 
-    fig.update_traces(
-        hovertemplate="<b>%{hovertext}</b><br><br>"
-        + "<br>".join(
-            [
-                "<b>" + key.capitalize() +
-                "</b>: %{customdata[" + str(i) + "]}"
-                for i, key in enumerate(extra)
-            ]
-        )
-        + "<extra></extra>"
-    )
-
+    print("Centering map to area:", plot_config.area)
     if plot_config.area:
         try:
             fig.update_layout(
@@ -265,6 +325,21 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
             )
         except ValueError as e:
             logger.error(e)
+
+    if hover_text:
+        # If the hover_text / title is too long, put the legen below
+        if max([len(h) for h in hover_text]) > 15:
+            print("Label text too long, putting legend below")
+            fig.update_layout(
+                legend=dict(
+                    orientation="h",      # horizontal legend
+                    x=0,                  # align left
+                    y=-0.01,              # place it at the top; use e.g. y=-0.1 for below
+                    xanchor="left",
+                    yanchor="top"
+                )
+            )
+
     return fig
 
 
