@@ -56,6 +56,7 @@ class FiwareDatasource:
     """Class representing a request to a data_source section in the config file"""
 
     def __init__(self, source: Datasource_model) -> None:
+        """Initialize the FiwareDatasource object with a source model"""
         self._source = source
 
         if "id" not in self._source.query.select:
@@ -68,6 +69,14 @@ class FiwareDatasource:
     def get_data(
         self, selector: Selector, filter: Filter | None = None
     ) -> pl.DataFrame:
+        """
+        Get data from the data source and apply the given selector and filter.
+        Args:
+            selector (Selector): A function that selects data from the DataFrame
+            filter (Filter | None): A function that filters the DataFrame
+            Returns:
+                pl.DataFrame: The filtered and selected DataFrame
+        """
         df = self._df
 
         try:
@@ -94,6 +103,7 @@ class FiwareDatasource:
 
     @property
     def df(self) -> pl.DataFrame:
+        """Get the DataFrame"""
         return self._df
 
     def _request(self) -> pl.DataFrame:
@@ -148,6 +158,12 @@ class FiwareDatasource:
         self,
         location: dict[str, Any],
     ) -> Position | list[Position] | list[list[Position]]:
+        """Parse a location object from the Fiware API
+        Args:
+            location (dict): The location object to parse
+        Returns:
+            Position | list[Position] | list[list[Position]]: The parsed location
+        """
         match location["value"]["type"]:
             case "Point":
                 return Position(
@@ -178,6 +194,12 @@ class FiwareDatasource:
                 raise NotImplementedError
 
     def _parse_address(self, address: dict[str, Any]) -> str:
+        """Parse an address object from the Fiware
+        Args:
+            address (dict): The address object to parse
+        Returns:
+            str: The parsed address
+        """
         return_address = ""
         address = address["value"]
 
@@ -203,6 +225,9 @@ class FiwareDatasource:
         return return_address
 
     def _parse_id(self, id_str: str) -> str:
+        """
+        Parse an id object from the Fiware API
+        """
         return re.sub(r"-(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}|latest)", "", id_str)
 
     def _parse_dateObserved(self, date: str) -> str:
@@ -224,17 +249,29 @@ class FiwareDatasource:
 
 
 class DataSources:
+    """Class representing all data sources in the config file"""
     requests = {}
 
     @staticmethod
     def add_requests(sources: dict[str, Datasource_model]) -> None:
+        """
+        Add multiple requests to the DataSources class.
+        Args:
+            sources (dict[str, Datasource_model]): A dictionary of data sources
+        """
         for name, request in sources.items():
             DataSources.requests[name] = FiwareDatasource(request)
 
     @staticmethod
     def add_request(source_name: str, source: Datasource_model) -> None:
+        """
+        Add a single request to the DataSources class.
+        """
         DataSources.requests[source_name] = FiwareDatasource(source)
 
     @staticmethod
     def get_request(request_name: str) -> FiwareDatasource:
+        """
+        Get a request by its name.
+        """
         return DataSources.requests[request_name]

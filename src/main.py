@@ -4,7 +4,6 @@ from asgiref.wsgi import WsgiToAsgi
 from dash import Input, Output, dcc, html
 from flask import redirect
 from werkzeug.wrappers import Response as WerkzeugResponse
-from flask_login import current_user
 
 import my_dash_component
 
