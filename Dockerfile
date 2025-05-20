@@ -28,6 +28,8 @@ FROM base as final
 
 COPY . .
 
+ENV DEBUG=true
+
 COPY --from=builder /venv /venv
 
 EXPOSE 8000

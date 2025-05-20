@@ -4,6 +4,7 @@ from asgiref.wsgi import WsgiToAsgi
 from dash import Input, Output, dcc, html
 from flask import redirect
 from werkzeug.wrappers import Response as WerkzeugResponse
+from flask_login import current_user
 
 import my_dash_component
 
@@ -48,10 +49,10 @@ def create_grid() -> list[my_dash_component.Container | dcc.Graph]:
 
 def create_layout() -> list[my_dash_component.Container | dcc.Graph]:
     """Create the layout for the dashboard"""
-
     return html.Div(
         [
             dcc.Location(id="sag_url", refresh=False),
+            dcc.Store(id="user-role-store"),
             html.Div(
                 id="dummy-div", style={"visibility": "hidden", "whiteSpace": "nowrap"}
             ),
@@ -77,6 +78,16 @@ def init_dash() -> None:
     global dashboard
     dashboard = create_dashboard(env.URL_CONFIG)
     app.layout = create_layout
+    
+    @app.callback(
+        Output("sag_navbar", "is_admin"),
+        Input("sag_url", "pathname"),
+        prevent_initial_call=True,
+    )
+    def update_navbar_role(_):
+        from flask_login import current_user
+        return current_user.is_authenticated and getattr(current_user, "role", "") == "admin"
+
 
     # fit the longest selector
     app.clientside_callback(

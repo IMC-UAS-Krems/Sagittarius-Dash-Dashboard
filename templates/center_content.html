@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <title>Sagittarius Dashboard</title>
@@ -13,7 +13,20 @@
     <main
       class="p-3 d-flex flex-column align-items-center position-absolute top-50 start-50 translate-middle"
     >
-      {% block content %} {% endblock %}
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %}
+      <div class="fixed top-5 left-1/2 -translate-x-1/2 z-50 w-full md:w-1/3">
+        {% for category, message in messages %}
+        <div
+          class="{% if category == 'error' %}bg-red-100 text-red-700 border-red-400{% else %}bg-green-100 text-green-700 border-green-400{% endif %} px-4 py-3 rounded relative mb-4 border"
+          role="alert"
+        >
+          <span class="block sm:inline">{{ message }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %} {% endwith %} {% block content %} {% endblock %}
     </main>
   </body>
 </html>
+
