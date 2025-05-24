@@ -21,15 +21,14 @@ def create_grid() -> list[my_dash_component.Container | dcc.Graph]:
 
     for grid_item in dashboard.plots:
         if grid_item.with_callback:
-            grid.append(
-                my_dash_component.Container(
-                    [
-                        dcc.Graph(
-                            className="w-full h-1/2 flex-1", id=grid_item.plot_id
-                        ),
-                    ]
-                )
+            children = []
+            if grid_item.selector:
+                children.append(grid_item.selector)
+            children.append(
+                dcc.Graph(className="w-full h-1/2 flex-1", id=grid_item.plot_id)
             )
+            grid.append(my_dash_component.Container(children))
+
         else:
             grid.append(
                 dcc.Graph(

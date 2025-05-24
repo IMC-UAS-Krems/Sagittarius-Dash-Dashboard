@@ -42,24 +42,28 @@ class PieChart(BaseModel):
     source: str
     traces: list[str]
     pie_chart_type: str | None = Field(None)
+    filter_by: str | None = None
 
 
 class BarChart(BaseModel):
     type: Literal["bar_chart"]
     source: str
     traces: list[str]  # first trace is x axis
+    filter_by: str | None = None
 
 
 class TimeSeries(BaseModel):
     type: Literal["timeseries"]
     source: str
     traces: list[str]  # first trace is x axis
+    filter_by: str | None = None
 
 
 class XYChart(BaseModel):
     type: Literal["xy_chart"]
     source: str
     traces: list[str]  # first trace is x axis
+    filter_by: str | None = None
 
 
 Panel: TypeAlias = PieChart | TimeSeries | BarChart | GeoMap | XYChart

@@ -15,6 +15,7 @@ def make_plot_with_callback(
     comp_id: str,
     graph_id: str,
     geo_map_id: Optional[str] = None,
+    filter_key: str = "id",
 ):
     """
     Makes a plot with callbacks to update it based on user interactions.
@@ -44,7 +45,8 @@ def make_plot_with_callback(
         Update visualization when input component value changes.
         """
         if input_value:
-            return visualization.create(filter_value=input_value)
+            return visualization.create(filter_col=filter_key, filter_value=input_value)
+
 
         fig = go.Figure()
         return visualization.apply_default_layout(fig)
@@ -64,7 +66,8 @@ def make_plot_with_callback(
             if geomap_input and "points" in geomap_input and len(geomap_input["points"]) > 0:
                 try:
                     filter_value = geomap_input["points"][0]["customdata"][-1]
-                    return visualization.create(filter_value=filter_value)
+                    return visualization.create(filter_col=filter_key, filter_value=filter_value)
+
                 except (IndexError, KeyError) as e:
                     logger.warning(f"Error extracting filter value from map click: {e}")
 
