@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from hashlib import md5
 from typing import Any, NamedTuple
+from datetime import datetime, date
 
 import polars as pl
 from dash import dcc, html
@@ -55,7 +56,8 @@ def create_dashboard(config_url: Url) -> Dashboard:
 
     try:
         DataSources.add_requests(app_config.data_sources)
-        plots, selector = _parse_plots_config(app_config.application.visualizations)
+        plots, selector = _parse_plots_config(
+            app_config.application.visualizations)
 
         hash = _calc_hash(str(app_config.application.visualizations))
 
@@ -72,29 +74,50 @@ def _parse_plots_config(
     data: dict[str, Panel],
 ) -> tuple[list[GridItem], html.Div | None]:
     plots: list[GridItem] = []
-    global_selector: html.Div | None = None
 
-    need_dropdown_selector = any(
-        plot.type in ("timeseries", "xy_chart", "bar_chart", "pie_chart")
-        for plot in data.values()
-    )
-    need_map_selector = (
-        any(isinstance(plot, GeoMap) for plot in data.values())
-        and need_dropdown_selector
+    df = DataSources.get_request(next(iter(data.values())).source).df
+
+    if df.is_empty() or "dateObserved" not in df.columns or df["dateObserved"].null_count() == df.height:
+        logger.error(
+            "'dateObserved' column is empty or missing. Cannot set up DatePickerRange correctly.")
+        current_d = date.today()
+        initial_start_date = current_d
+        initial_end_date = current_d
+        min_date_allowed_for_picker = current_d
+        max_date_allowed_for_picker = current_d
+
+    else:
+        min_datetime = df["dateObserved"].min()
+        max_datetime = df["dateObserved"].max()
+
+    min_date_allowed_for_picker = min_datetime.date()
+    max_date_allowed_for_picker = max_datetime.date()
+    initial_start_date = min_datetime.date()
+    initial_end_date = max_datetime.date()
+
+    date_range_picker = html.Div(
+        dcc.DatePickerRange(
+            id="sag-global-date-picker",
+            start_date=initial_start_date,
+            end_date=initial_end_date,
+            min_date_allowed=min_date_allowed_for_picker,
+            max_date_allowed=max_date_allowed_for_picker,
+            display_format="YYYY-MM-DD",
+            minimum_nights=0  # <-- Add this line
+        ),
+        className="flex-shrink basis-1/4",
     )
 
     for i, (plot_name, plot) in enumerate(data.items()):
         if isinstance(plot, GeoMap):
             plots.append(_parse_plots_config_map(plot_name, plot))
         else:
-            plot_item, sel = _parse_plots_config_plot(
-                plot_name, plot, i, need_map_selector
+            plot_item, _ = _parse_plots_config_plot(
+                plot_name, plot, i, need_map_selector=False
             )
             plots.append(plot_item)
-            if sel is not None and global_selector is None:
-                global_selector = sel
 
-    return plots, global_selector
+    return plots, date_range_picker
 
 
 def _parse_plots_config_map(plot_name: str, plot: GeoMap) -> GridItem:
@@ -108,7 +131,9 @@ def _parse_plots_config_plot(
     plot_name: str, plot: Panel, i: int, need_map_selector: bool
 ) -> tuple[GridItem, html.Div | None]:
     filter_col = getattr(plot, "filter_by", None)
-    comp_id = f"sag-selector-{i}" if filter_col else "sag-global-selector"
+    has_filter = bool(filter_col)
+    comp_id = f"sag-selector-{i}" if has_filter else None
+
     graph_id = f"sag-plot{i}"
 
     make_plot_with_callback(
@@ -137,9 +162,8 @@ def _parse_plots_config_plot(
                 with_callback=True,
                 selector=None,
             ),
-            _create_selector(comp_id, plot.source, "id"),
+            None,
         )
-
 
 
 def _calc_hash(_to_hash: str | dict[str, Any]) -> str:

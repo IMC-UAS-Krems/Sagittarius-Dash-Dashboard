@@ -87,30 +87,6 @@ def init_dash() -> None:
         return current_user.is_authenticated and getattr(current_user, "role", "") == "admin"
 
 
-    # fit the longest selector
-    app.clientside_callback(
-        """
-    function(options) {
-        var longestText = '';
-        options.forEach(option => {
-            if (option.length > longestText.length) {
-                longestText = option;
-            }
-        });
-
-        var dummyDiv = document.getElementById('dummy-div');
-        dummyDiv.innerText = longestText;
-        var width = dummyDiv.offsetWidth;
-
-        var dropdown = document.getElementById("sag-selector");
-        dropdown.style.width = (width + 32) + 'px';  // Adding some padding
-    }
-    """,
-        Output("dummy-div", "children"),
-        [Input("sag-selector", "options")],
-        prevent_initial_call=True,
-    )
-
 
 @server.route("/")
 def index() -> WerkzeugResponse:
