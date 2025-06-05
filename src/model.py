@@ -37,6 +37,7 @@ class GeoMap(BaseModel):
     # center coordinates (https://nominatim.org/)
     area: str | None = Field(None)
     color_by: str | None = Field(None)  # color by field
+    size_by: str | None = Field(None)  # size by field
     geometry_type: str | None = Field(None)  # geometry type - either point or polygon for now
 
 

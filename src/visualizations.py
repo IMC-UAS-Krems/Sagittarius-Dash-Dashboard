@@ -165,34 +165,54 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
     # --- HELPER FUNCTIONS ---
 
     # --- GET DATA - General ---
+    # --- GET DATA - General ---
     df = _get_df(plot_config.source)  # FiwareDatasource object
-    print("Traces:", plot_config.traces)  # ['wind
-    lat_lon = plot_config.traces[0]
-    label = plot_config.traces[1]
-    extra = plot_config.traces[2:]
-    if "id" not in extra:
-        extra.append("id")
-    custom_data = df.get_data(custom_data_selector(extra)).rows()
-    hover_text = df.get_data(data_selector(label)).to_series().to_list()
+    print("Traces:", plot_config.traces)
+    lat_lon_col = plot_config.traces[0]
+    label_col = plot_config.traces[1]
+    extra_cols = plot_config.traces[2:]
+    if "id" not in extra_cols:
+        extra_cols.append("id")
+
+    # Initial fetch based on unique IDs - these might be filtered later for points
+    try:
+        custom_data_unfiltered = df.get_data(
+            custom_data_selector(extra_cols)).rows()
+        hover_text_unfiltered = df.get_data(
+            data_selector(label_col)).to_series().to_list()
+        lat_lon_series_unfiltered = df.get_data(
+            data_selector(lat_lon_col)).to_series()
+    except pl.ColumnNotFoundError as e:
+        logger.error(
+            f"Column not found during initial data fetch for map '{plot_name}': {e}")
+        fig = go.Figure()
+        fig.update_layout(title=f"{plot_name} (Error: Data column missing)")
+        return fig
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during initial data fetch for map '{plot_name}': {e}")
+        fig = go.Figure()
+        fig.update_layout(title=f"{plot_name} (Error: Data fetch failed)")
+        return fig
     # --- GET DATA - General ---
 
     # --- INSTANTIATE FIGURE - MODIFY IT BASED ON GEMOETRY_TYPE ---
     fig = go.Figure()
     geometry_type = getattr(plot_config, "geometry_type", "point")
+
     if geometry_type == "polygon":
-        polygons = df.get_data(data_selector(lat_lon)).to_series().to_list()
+        polygons = lat_lon_series_unfiltered.to_list()
 
         # --- Cut to 50 polygons for display ---
         if len(polygons) > 50:
             print(
                 f"Warning: More than 50 polygons detected. ({len(polygons)} polygons)")
             polygons = polygons[:50]
-        # print("Custom data:", custom_data[0])  # (id,)
-        # print("Hover text:", hover_text[0])  # Correct
+            # Potentially slice custom_data_unfiltered and hover_text_unfiltered if needed
 
-        # --- Add polygons as Traces ---
         for i, poly in enumerate(polygons):
-            if not poly:
+            # Boundary check
+            if not poly or i >= len(hover_text_unfiltered) or i >= len(custom_data_unfiltered):
                 continue
             lats = [vertex[0] for vertex in poly]
             lons = [vertex[1] for vertex in poly]
@@ -202,117 +222,235 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
                     lon=lons,
                     mode="lines",
                     fill="toself",
-                    # name=hover_text[i],
-                    hovertemplate=f"<b>{hover_text[i]}</b><br><br>" + "<br>".join(
-                        [f"<b>{extra[j]}</b>: {custom_data[i][j]}" for j in range(len(custom_data[i]))]) + "<extra></extra>"
+                    hovertemplate=f"<b>{hover_text_unfiltered[i]}</b><br><br>" + "<br>".join(
+                        [f"<b>{extra_cols[j].capitalize()}</b>: {custom_data_unfiltered[i][j]}" for j in range(len(custom_data_unfiltered[i]))]) + "<extra></extra>"
                 )
             )
 
     # --- GEOMETRY_TYPE = `multiplygon` ---
     elif geometry_type == "multipolygon":
-        mpolygons = df.get_data(data_selector(lat_lon)).to_series().to_list()
+        # Assuming lat_lon_series_unfiltered contains multipolygon coords
+        mpolygons = lat_lon_series_unfiltered.to_list()
+        print("\n---\nTrying to create map with multipolygons")
 
         # --- Cut to 50 polygons for display ---
-        print("\n---\nTrying to create map with multipolygons")
         if len(mpolygons) > 50:
             print(
                 f"Warning: >50 multipolygons ({len(mpolygons)}). Showing first 50.")
             mpolygons = mpolygons[:50]
+            # Potentially slice custom_data_unfiltered and hover_text_unfiltered
 
         # --- Add multipolygons as Traces ---
         for i, mpoly in enumerate(mpolygons):
-            if not mpoly:
+            # Boundary check
+            if not mpoly or i >= len(hover_text_unfiltered) or i >= len(custom_data_unfiltered):
                 continue
-
             lats, lons = [], []
-            # Each mpoly is a list of Polygons; each Polygon is a list of rings
             for polygon in mpoly:
                 for ring in polygon:
                     for vertex in ring:
                         lats.append(vertex[0])
                         lons.append(vertex[1])
-                    # break before next ring
                     lats.append(None)
                     lons.append(None)
-
-            # print("Adding multipolygon", i, "with", len(
-            #     lats), "vertices\nCustom data:", custom_data[i], "\nHover text:", hover_text[i])
             fig.add_trace(
                 go.Scattermap(
                     lat=lats,
                     lon=lons,
                     mode="lines",
                     fill="toself",
-                    name=hover_text[i],
-                    hovertemplate=f"<b>{hover_text[i]}</b><br><br>" + "<br>".join(
-                        [f"<b>{extra[j]}</b>: {custom_data[i][j]}" for j in range(len(custom_data[i]))]) + "<extra></extra>"
+                    name=hover_text_unfiltered[i],
+                    hovertemplate=f"<b>{hover_text_unfiltered[i]}</b><br><br>" + "<br>".join(
+                        [f"<b>{extra_cols[j].capitalize()}</b>: {custom_data_unfiltered[i][j]}" for j in range(len(custom_data_unfiltered[i]))]) + "<extra></extra>"
                 )
             )
 
     # --- GEOMETRY_TYPE = `point` - DEFAULT ---
     else:
-        lat = df.get_data(data_selector(lat_lon)).to_series() \
-                .map_elements(lambda x: x[0], return_dtype=pl.Float32)
-        lon = df.get_data(data_selector(lat_lon)).to_series() \
-                .map_elements(lambda x: x[1], return_dtype=pl.Float32)
+        lat_values = lat_lon_series_unfiltered.map_elements(lambda x: x[0] if isinstance(
+            x, (list, tuple)) and len(x) > 0 else None, return_dtype=pl.Float64, skip_nulls=False)
+        lon_values = lat_lon_series_unfiltered.map_elements(lambda x: x[1] if isinstance(
+            x, (list, tuple)) and len(x) > 1 else None, return_dtype=pl.Float64, skip_nulls=False)
 
-        # --- `color_by` map ---
-        if plot_config.color_by:
-            # find unique categories
-            point_cats = df.get_data(data_selector(plot_config.color_by)) \
-                .to_series().to_list()
-            unique_cats = [c for c in sorted(set(point_cats)) if c is not None]
-            for cat in unique_cats:
-                idxs = [i for i, c in enumerate(point_cats) if c == cat]
+        valid_indices = [
+            i for i, (la, lo) in enumerate(zip(lat_values, lon_values))
+            if la is not None and lo is not None and i < len(hover_text_unfiltered) and i < len(custom_data_unfiltered)
+        ]
+
+        if not valid_indices:
+            logger.warning(
+                f"No valid points with coordinates to plot for map '{plot_name}'.")
+            # fig is already empty, layout will be applied later
+        else:
+            lat_filtered = pl.Series([lat_values[i] for i in valid_indices])
+            lon_filtered = pl.Series([lon_values[i] for i in valid_indices])
+            custom_data_filtered = [custom_data_unfiltered[i]
+                                    for i in valid_indices]
+            hover_text_filtered = [hover_text_unfiltered[i]
+                                   for i in valid_indices]
+
+            marker_sizes_scaled = None
+            size_by_column = getattr(plot_config, "size_by", None)
+            MIN_MARKER_SIZE = 5
+            MAX_MARKER_SIZE = 25
+            DEFAULT_MARKER_SIZE = 10
+            if size_by_column:
+                try:
+                    size_data_unfiltered = df.get_data(
+                        data_selector(size_by_column)).to_series()
+                    size_data_for_scaling = pl.Series(
+                        [size_data_unfiltered[i] for i in valid_indices if i < len(size_data_unfiltered)])
+
+                    if not size_data_for_scaling.dtype.is_numeric():
+                        logger.warning(
+                            f"size_by column '{size_by_column}' is not numeric. Using default marker size.")
+                    elif size_data_for_scaling.is_empty() or size_data_for_scaling.null_count() == size_data_for_scaling.len():
+                        logger.warning(
+                            f"size_by column '{size_by_column}' (after filtering) is empty or all nulls. Using default marker size.")
+                    else:
+                        mean_val_for_nulls = size_data_for_scaling.mean()
+                        if mean_val_for_nulls is None:
+                            mean_val_for_nulls = (
+                                MIN_MARKER_SIZE + MAX_MARKER_SIZE) / 2.0
+
+                        size_data_filled = size_data_for_scaling.fill_null(
+                            mean_val_for_nulls)
+
+                        min_val = size_data_filled.min()
+                        max_val = size_data_filled.max()
+
+                        if min_val is None or max_val is None:
+                            logger.warning(
+                                f"Could not determine min/max for size_by column '{size_by_column}'. Using default marker size.")
+                        elif max_val == min_val:
+                            marker_sizes_scaled = [
+                                MIN_MARKER_SIZE + (MAX_MARKER_SIZE - MIN_MARKER_SIZE) / 2.0] * len(size_data_filled)
+                        else:
+                            marker_sizes_scaled = [
+                                MIN_MARKER_SIZE +
+                                (val - min_val) / (max_val - min_val) *
+                                (MAX_MARKER_SIZE - MIN_MARKER_SIZE)
+                                for val in size_data_filled
+                            ]
+                except pl.ColumnNotFoundError:
+                    logger.error(
+                        f"size_by column '{size_by_column}' not found. Using default marker size.")
+                except Exception as e:
+                    logger.error(
+                        f"Error processing size_by column '{size_by_column}': {e}. Using default marker size.")
+
+            color_by_column = getattr(plot_config, "color_by", None)
+            if color_by_column:
+                try:
+                    point_cats_unfiltered = df.get_data(
+                        data_selector(color_by_column)).to_series()
+                    point_cats_filtered = pl.Series(
+                        [point_cats_unfiltered[i] for i in valid_indices if i < len(point_cats_unfiltered)]).to_list()
+                    unique_cats = sorted(
+                        list(set(c for c in point_cats_filtered if c is not None)))
+
+                    for cat in unique_cats:
+                        cat_indices_in_filtered = [
+                            i for i, c in enumerate(point_cats_filtered) if c == cat]
+
+                        current_lats = [lat_filtered[i]
+                                        for i in cat_indices_in_filtered]
+                        current_lons = [lon_filtered[i]
+                                        for i in cat_indices_in_filtered]
+                        current_customdata = [custom_data_filtered[i]
+                                              for i in cat_indices_in_filtered]
+                        current_hovertext = [hover_text_filtered[i]
+                                             for i in cat_indices_in_filtered]
+
+                        current_marker_s = DEFAULT_MARKER_SIZE
+                        if marker_sizes_scaled:
+                            current_marker_s = [marker_sizes_scaled[i]
+                                                for i in cat_indices_in_filtered]
+
+                        fig.add_trace(
+                            go.Scattermap(
+                                lat=current_lats,
+                                lon=current_lons,
+                                mode="markers",
+                                marker=dict(size=current_marker_s),
+                                customdata=current_customdata,
+                                hovertext=current_hovertext,
+                                name=str(cat),
+                            )
+                        )
+                except pl.ColumnNotFoundError:
+                    logger.error(
+                        f"color_by column '{color_by_column}' not found. Plotting without color categories.")
+                    # Fallback to single trace if color_by fails
+                    current_marker_s = marker_sizes_scaled if marker_sizes_scaled else DEFAULT_MARKER_SIZE
+                    fig.add_trace(
+                        go.Scattermap(
+                            lat=lat_filtered, lon=lon_filtered, mode="markers",
+                            marker=dict(size=current_marker_s),
+                            customdata=custom_data_filtered, hovertext=hover_text_filtered, name=plot_name,
+                        )
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error processing color_by column '{color_by_column}': {e}. Plotting without color categories.")
+                    # Fallback to single trace
+                    current_marker_s = marker_sizes_scaled if marker_sizes_scaled else DEFAULT_MARKER_SIZE
+                    fig.add_trace(
+                        go.Scattermap(
+                            lat=lat_filtered, lon=lon_filtered, mode="markers",
+                            marker=dict(size=current_marker_s),
+                            customdata=custom_data_filtered, hovertext=hover_text_filtered, name=plot_name,
+                        )
+                    )
+            else:  # No color_by
+                current_marker_s = marker_sizes_scaled if marker_sizes_scaled else DEFAULT_MARKER_SIZE
                 fig.add_trace(
                     go.Scattermap(
-                        lat=[lat[i] for i in idxs],
-                        lon=[lon[i] for i in idxs],
+                        lat=lat_filtered,
+                        lon=lon_filtered,
                         mode="markers",
-                        marker=dict(size=10),
-                        customdata=[custom_data[i] for i in idxs],
-                        hovertext=[hover_text[i] for i in idxs],
-                        name=str(cat),  # legend entry
+                        marker=dict(size=current_marker_s),
+                        customdata=custom_data_filtered,
+                        hovertext=hover_text_filtered,
+                        name=plot_name,
                     )
                 )
 
-        # --- No `color_by` - single trace ---
-        else:
-            # single‐trace fallback
-            fig.add_trace(
-                go.Scattermap(
-                    lat=lat,
-                    lon=lon,
-                    mode="markers",
-                    marker=dict(size=10),
-                    customdata=custom_data,
-                    hovertext=hover_text,
-                    name=plot_name,
-                )
+            fig.update_traces(
+                hovertemplate="<b>%{hovertext}</b><br><br>" +
+                "<br>".join([
+                    f"<b>{key.capitalize()}</b>: %{{customdata[{i}]}}"
+                    for i, key in enumerate(extra_cols)
+                ]) + "<extra></extra>"
             )
 
-        fig.update_traces(
-            hovertemplate="<b>%{hovertext}</b><br><br>"
-            + "<br>".join(
-                [
-                    "<b>" + key.capitalize() +
-                    "</b>: %{customdata[" + str(i) + "]}"
-                    for i, key in enumerate(extra)
-                ]
-            )
-            + "<extra></extra>"
-        )
-        # --- No `color_by` - single trace ---
-
-    # --- EXTRA COMMON SETTINGS ---
-    # - layout
-    # - map center, zoom
-    # - legend position
     fig.update_layout(
         mapbox_style="carto-positron",
         margin=dict(l=10, r=10, t=40, b=10),
         title=plot_name,
     )
+
+    if plot_config.area:
+        print("Centering map to area:", plot_config.area)
+        try:
+            fig.update_layout(
+                mapbox=dict(
+                    center=_get_map_center(plot_config.area),
+                    zoom=10,
+                )
+            )
+        except ValueError as e:
+            logger.error(
+                f"Could not center map for area {plot_config.area}: {e}")
+        except Exception as e:
+            logger.error(
+                f"An unexpected error occurred while centering map: {e}")
+
+    legend_text_source = hover_text_unfiltered
+    if geometry_type == "point" and 'hover_text_filtered' in locals() and hover_text_filtered:
+        legend_text_source = hover_text_filtered
+    elif not hover_text_unfiltered:
+        legend_text_source = []
 
     print("Centering map to area:", plot_config.area)
     if plot_config.area:
@@ -326,20 +464,14 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
         except ValueError as e:
             logger.error(e)
 
-    if hover_text:
-        # If the hover_text / title is too long, put the legen below
-        if max([len(h) for h in hover_text]) > 15:
+    if legend_text_source:
+        if max([len(str(h)) for h in legend_text_source if h is not None], default=0) > 15:
             print("Label text too long, putting legend below")
             fig.update_layout(
                 legend=dict(
-                    orientation="h",      # horizontal legend
-                    x=0,                  # align left
-                    y=-0.01,              # place it at the top; use e.g. y=-0.1 for below
-                    xanchor="left",
-                    yanchor="top"
+                    orientation="h", y=-0.01, x=0, xanchor="left", yanchor="top"
                 )
             )
-
     return fig
 
 
