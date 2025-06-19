@@ -13,6 +13,8 @@ from plotly.colors import sample_colorscale
 from requests import Response
 from requests import get as r_get
 from src.model import GeoMap, Panel
+import numpy as np
+import math
 
 from .requests import DataSources, Filter, Selector
 
@@ -141,6 +143,74 @@ def _get_map_center(area: str) -> Coordinates:
     # location["lon"] = location.pop("lng")
     # return location
     #
+
+
+def zoom_center(lons: tuple = None, lats: tuple = None, lonlats: tuple = None,
+                format: str = 'lonlat', projection: str = 'mercator',
+                width_to_height: float = 2.0) -> float | Coordinates:
+    """Finds optimal zoom and centering for a plotly mapbox.
+    Must be passed (lons & lats) or lonlats.
+    Temporary solution awaiting official implementation, see:
+    https://github.com/plotly/plotly.js/issues/3434
+
+    Parameters
+    --------
+    lons: tuple, optional, longitude component of each location
+    lats: tuple, optional, latitude component of each location
+    lonlats: tuple, optional, gps locations
+    format: str, specifying the order of longitud and latitude dimensions,
+        expected values: 'lonlat' or 'latlon', only used if passed lonlats
+    projection: str, only accepting 'mercator' at the moment,
+        raises `NotImplementedError` if other is passed
+    width_to_height: float, expected ratio of final graph's with to height,
+        used to select the constrained axis.
+
+    Returns
+    --------
+    zoom: float, from 1 to 20
+    center: dict, gps position with 'lon' and 'lat' keys
+
+    >>> print(zoom_center((-109.031387, -103.385460),
+    ...     (25.587101, 31.784620)))
+    (5.75, {'lat': -106.208423, 'lon': 28.685861})
+    """
+    if lons is None and lats is None:
+        if isinstance(lonlats, tuple):
+            lons, lats = zip(*lonlats)
+        else:
+            raise ValueError(
+                'Must pass lons & lats or lonlats'
+            )
+
+    maxlon, minlon = max(lons), min(lons)
+    maxlat, minlat = max(lats), min(lats)
+    center = {
+        'lat': round((maxlat + minlat) / 2, 6),
+        'lon': round((maxlon + minlon) / 2, 6)
+    }
+
+    # longitudinal range by zoom level (20 to 1)
+    # in degrees, if centered at equator
+    lon_zoom_range = np.array([
+        0.0007, 0.0014, 0.003, 0.006, 0.012, 0.024, 0.048, 0.096,
+        0.192, 0.3712, 0.768, 1.536, 3.072, 6.144, 11.8784, 23.7568,
+        47.5136, 98.304, 190.0544, 360.0
+    ])
+
+    if projection == 'mercator':
+        margin = 2.2
+        height = (maxlat - minlat) * margin * width_to_height
+        width = (maxlon - minlon) * margin
+        lon_zoom = np.interp(width, lon_zoom_range, range(20, 0, -1))
+        lat_zoom = np.interp(height, lon_zoom_range, range(20, 0, -1))
+        # zoom = math.floor(min(lon_zoom, lat_zoom))
+        zoom = round(min(lon_zoom, lat_zoom), 4)
+    else:
+        raise NotImplementedError(
+            f'{projection} projection is not implemented'
+        )
+
+    return zoom, center
 
 
 def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
@@ -430,11 +500,11 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
         title=plot_name,
     )
 
+    # --- CENTER MAP ---
     if plot_config.area:
-        print("Centering map to area:", plot_config.area)
         try:
             fig.update_layout(
-                mapbox=dict(
+                map=dict(
                     center=_get_map_center(plot_config.area),
                     zoom=10,
                 )
@@ -445,6 +515,18 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
         except Exception as e:
             logger.error(
                 f"An unexpected error occurred while centering map: {e}")
+    else:
+        zoom, center = zoom_center(
+            lons=lon_filtered.to_list(),
+            lats=lat_filtered.to_list()
+        )
+        print(f"Center: {center}, Zoom: {zoom}")
+        fig.update_layout(
+            map=dict(
+                center=center,
+                zoom=zoom,
+            )
+        )
 
     legend_text_source = hover_text_unfiltered
     if geometry_type == "point" and 'hover_text_filtered' in locals() and hover_text_filtered:
@@ -452,19 +534,9 @@ def _create_map(plot_name: str, plot_config: GeoMap) -> go.Figure:
     elif not hover_text_unfiltered:
         legend_text_source = []
 
-    print("Centering map to area:", plot_config.area)
-    if plot_config.area:
-        try:
-            fig.update_layout(
-                map=dict(
-                    center=_get_map_center(plot_config.area),
-                    zoom=10,
-                )
-            )
-        except ValueError as e:
-            logger.error(e)
-
-    if legend_text_source:
+    # Check if legend text is too long - only if color_by is set
+    if legend_text_source and plot_config.color_by:
+        # print("Legend text source:", legend_text_source)
         if max([len(str(h)) for h in legend_text_source if h is not None], default=0) > 15:
             print("Label text too long, putting legend below")
             fig.update_layout(
