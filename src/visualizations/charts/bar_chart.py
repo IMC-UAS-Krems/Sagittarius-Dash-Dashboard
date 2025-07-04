@@ -99,6 +99,9 @@ class BarChartVisualization(BaseVisualization):
                 else None,
             ).to_series()
             
+            if y.null_count() == y.len():
+                continue
+            
             fig.add_bar(
                 x=x,
                 y=y,

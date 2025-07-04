@@ -110,16 +110,26 @@ class FiwareDatasource:
         """Get data from the data source, parse it and save it as a polars DataFrame to `self.df`"""
 
         params = {"type": self._source.query.type}
-        params["limit"] = 1000  # type: ignore
-        resp = r_get(self._source.uri, params=params)
-        data = orjson.loads(resp.content)
+        limit = 1000
+        all_data = []
+        offset = 0
+        while True:
+            params["limit"] = limit
+            params["offset"] = offset
+            resp = r_get(self._source.uri, params=params)
+            chunk = orjson.loads(resp.content)
+            if not chunk:
+                break
+            all_data.extend(chunk)
+            offset += limit
 
-        if not data:
+        if not all_data:
             raise ValueError("No data received")
 
-        data_list: list[list[Any]] = self._parse(data, self._source.query.select)
-
-        return pl.DataFrame(data_list, schema=self._source.query.select)
+        data_list: list[list[Any]] = self._parse(all_data, self._source.query.select)
+        df = pl.DataFrame(data_list, schema=self._source.query.select,
+                          orient="row", infer_schema_length=None)
+        return df
 
     def _parse(self, data: FiwareJson, keys: list[str]) -> list[list[Any]]:
         """Parses data from the Fiware with the given data keys"""

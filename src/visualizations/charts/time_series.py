@@ -43,6 +43,9 @@ class TimeSeriesVisualization(BaseVisualization):
                 filter=self.create_filter(filter_col, filter_value) if filter_value else None,
             ).to_series()
             
+            if y.null_count() == y.len():
+                continue
+            
             fig.add_scatter(
                 x=x,
                 y=y,

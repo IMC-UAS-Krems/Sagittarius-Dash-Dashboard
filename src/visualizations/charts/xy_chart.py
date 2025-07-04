@@ -5,9 +5,10 @@ from plotly import graph_objects as go
 from ..base import BaseVisualization
 from ..registry import register_visualization
 
+
 @register_visualization("xy_chart")
 class XYVisualization(BaseVisualization):
-    
+
     def create(self, filter_col: str = "id", filter_value: Optional[str] = None) -> go.Figure:
         """
         Create a XY chart visualization.
@@ -34,12 +35,18 @@ class XYVisualization(BaseVisualization):
             trace = traces[i]
             x = df.get_data(
                 self.create_selector(traces[dateObserved_index]),
-                filter=self.create_filter(filter_col, filter_value) if filter_value else None,
+                filter=self.create_filter(
+                    filter_col, filter_value) if filter_value else None,
             ).to_series()
             y = df.get_data(
                 self.create_selector(trace),
-                filter=self.create_filter(filter_col, filter_value) if filter_value else None,
+                filter=self.create_filter(
+                    filter_col, filter_value) if filter_value else None,
             ).to_series()
+
+            if y.null_count() == y.len():
+                continue
+
             fig.add_scatter(
                 x=x,
                 y=y,
