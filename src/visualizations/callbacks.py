@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, Dict, Any
 
-from dash import Input, Output, callback
+from dash import Input, Output, callback, State
 from plotly import graph_objects as go
 
 from src.model import Panel
@@ -38,13 +38,21 @@ def make_plot_with_callback(
     @callback(
         Output(component_id=graph_id, component_property="figure"),
         Input(component_id=comp_id, component_property="value"),
+        Input(component_id="sag-global-date-picker",
+              component_property="start_date"),
+        Input(component_id="sag-global-date-picker",
+              component_property="end_date"),
     )
-    def update_from_input(input_value: str) -> go.Figure:
+    def update_from_input(
+        input_value: str, start_date: str, end_date: str
+    ) -> go.Figure:
         """
         Update visualization when input component value changes.
         """
-        if input_value:
-            return visualization.create(filter_value=input_value)
+        if input_value and start_date and end_date:
+            return visualization.create(
+                filter_value=input_value, start_date=start_date, end_date=end_date
+            )
 
         fig = go.Figure()
         return visualization.apply_default_layout(fig)
@@ -55,16 +63,26 @@ def make_plot_with_callback(
                 component_id=graph_id, component_property="figure", allow_duplicate=True
             ),
             Input(component_id=geo_map_id, component_property="clickData"),
+            State(component_id="sag-global-date-picker",
+                  component_property="start_date"),
+            State(component_id="sag-global-date-picker",
+                  component_property="end_date"),
             prevent_initial_call=True,
         )
-        def update_from_map_click(geomap_input: Dict[str, Any]) -> go.Figure:
+        def update_from_map_click(
+            geomap_input: Dict[str, Any], start_date: str, end_date: str
+        ) -> go.Figure:
             """U
             pdate visualization when a point on the map is clicked.
             """
             if geomap_input and "points" in geomap_input and len(geomap_input["points"]) > 0:
                 try:
                     filter_value = geomap_input["points"][0]["customdata"][-1]
-                    return visualization.create(filter_value=filter_value)
+                    return visualization.create(
+                        filter_value=filter_value,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
                 except (IndexError, KeyError) as e:
                     logger.warning(f"Error extracting filter value from map click: {e}")
 

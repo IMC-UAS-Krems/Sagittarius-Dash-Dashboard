@@ -55,7 +55,8 @@ def create_dashboard(config_url: Url) -> Dashboard:
 
     try:
         DataSources.add_requests(app_config.data_sources)
-        plots, selector = _parse_plots_config(app_config.application.visualizations)
+        plots, selector = _parse_plots_config(
+            app_config.application.visualizations)
         hash = _calc_hash(str(app_config.application.visualizations))
 
     except Exception as e:
@@ -71,7 +72,7 @@ def _parse_plots_config(
     data: dict[str, Panel],
 ) -> tuple[list[GridItem], html.Div | None]:
     plots = []
-    selector = None
+    selectors = []
 
     need_dropdown_selector = any(
         plot.type in ("timeseries", "xy_chart", "bar_chart", "pie_chart")
@@ -82,6 +83,7 @@ def _parse_plots_config(
         and need_dropdown_selector
     )
 
+    id_selector_added = False
     for i, (plot_name, plot) in enumerate(data.items()):
         try:
             if isinstance(plot, GeoMap):
@@ -90,7 +92,9 @@ def _parse_plots_config(
                 plot_item, sel = _parse_plots_config_plot(
                     plot_name, plot, i, need_map_selector
                 )
-                selector = sel if not selector else selector
+                if not id_selector_added:
+                    selectors.append(sel)
+                    id_selector_added = True
 
             plots.append(plot_item)
 
@@ -102,7 +106,27 @@ def _parse_plots_config(
                 f"Invalid config file. Chech if '{plot_name}.traces' has at least 2 items. {plot.traces=}",
                 "Please check your config file.",
             )
-    return plots, selector
+
+    df = DataSources.get_request(next(iter(data.values())).source).df
+
+    min_date = df["dateObserved"].min()
+    max_date = df["dateObserved"].max()
+
+    date_range_picker = html.Div(
+        [
+            dcc.DatePickerRange(
+                id="sag-global-date-picker",
+                start_date=min_date,
+                end_date=max_date,
+                min_date_allowed=min_date,
+                max_date_allowed=max_date,
+                display_format="DD-MM-YYYY",
+            ),
+        ],
+        className="w-min",
+    )
+    selectors.append(date_range_picker)
+    return plots, html.Div(selectors, className="w-full") if need_dropdown_selector else None
 
 
 def _parse_plots_config_map(plot_name: str, plot: GeoMap) -> GridItem:
@@ -160,6 +184,8 @@ def _create_selector(comp_id: str, source: str):
         .to_list()
     )
     return html.Div(
-        dcc.Dropdown(options, options[0], id=comp_id),
-        className="flex-shrink basis-1/3",
+        [
+            dcc.Dropdown(options, options[0], id=comp_id),
+        ],
+        className="w-3/5 mb-4"
     )

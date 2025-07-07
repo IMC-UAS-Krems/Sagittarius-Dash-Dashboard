@@ -1,6 +1,8 @@
 from typing import Optional
 
 from plotly import graph_objects as go
+import polars as pl
+from datetime import datetime
 
 from ..base import BaseVisualization
 from ..registry import register_visualization
@@ -9,7 +11,13 @@ from ..registry import register_visualization
 @register_visualization("xy_chart")
 class XYVisualization(BaseVisualization):
 
-    def create(self, filter_col: str = "id", filter_value: Optional[str] = None) -> go.Figure:
+    def create(
+        self,
+        filter_value: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        filter_col: str = "id",
+    ) -> go.Figure:
         """
         Create a XY chart visualization.
         Args:
@@ -19,39 +27,40 @@ class XYVisualization(BaseVisualization):
             A Plotly Figure object representing the XY chart.
         """
         fig = go.Figure()
-        df = self.get_data(self.source)
+        df = self.get_data(self.source).df
 
-        traces = self.plot_config.traces
+        filters = []
+        if filter_value:
+            filters.append(pl.col(filter_col) == filter_value)
 
-        if "id" in traces:
-            traces.remove("id")
+        if start_date and end_date:
+            start_dt = datetime.fromisoformat(start_date)
+            end_dt = datetime.fromisoformat(end_date)
+            filters.append(pl.col("dateObserved").is_between(start_dt, end_dt))
 
-        dateObserved_index = traces.index("dateObserved")
+        if filters:
+            combined_filter = filters[0]
+            for f in filters[1:]:
+                combined_filter = combined_filter & f
+            df = df.filter(combined_filter)
 
-        for i in range(len(traces)):
-            if i == dateObserved_index:
-                continue
+        traces = self.plot_config.traces.copy()
 
-            trace = traces[i]
-            x = df.get_data(
-                self.create_selector(traces[dateObserved_index]),
-                filter=self.create_filter(
-                    filter_col, filter_value) if filter_value else None,
-            ).to_series()
-            y = df.get_data(
-                self.create_selector(trace),
-                filter=self.create_filter(
-                    filter_col, filter_value) if filter_value else None,
-            ).to_series()
+        if len(traces) < 2:
+            raise ValueError(
+                "XY chart requires at least two traces (for X and Y axes).")
 
-            if y.null_count() == y.len():
-                continue
+        x_axis_col = traces[0]
+        y_axis_col = traces[1]
 
-            fig.add_scatter(
-                x=x,
-                y=y,
-                mode="markers",
-                name=trace,
-            )
+        fig.add_scatter(
+            x=df.get_column(x_axis_col),
+            y=df.get_column(y_axis_col),
+            mode="markers",
+            name=f"{y_axis_col} vs {x_axis_col}",
+        )
+
         self.apply_default_layout(fig)
+        fig.update_layout(xaxis_title=x_axis_col, yaxis_title=y_axis_col)
+
         return fig
