@@ -1,5 +1,4 @@
 import logging
-import dash
 
 from asgiref.wsgi import WsgiToAsgi
 from dash import Input, Output, dcc, html
@@ -112,38 +111,6 @@ def init_dash() -> None:
         [Input("sag-selector", "options")],
         prevent_initial_call=True,
     )
-
-    @app.callback(
-        Output("sag-selector", "value"),
-        Input("sag-map", "clickData"),
-        prevent_initial_call=True,
-    )
-    def update_dropdown_from_map(clickData):
-        """When a map point is clicked, update the dropdown value."""
-        if clickData and clickData["points"]:
-            point_id = clickData["points"][0]["customdata"][-1]
-            return point_id
-        raise dash.exceptions.PreventUpdate
-
-    @app.callback(
-        Output("sag-map", "figure"),
-        Input("sag-selector", "value"),
-        Input("sag-global-date-picker", "start_date"),
-        Input("sag-global-date-picker", "end_date"),
-    )
-    def update_map_from_dropdown(selected_id, start_date, end_date):
-        """When dropdown or date changes, redraw the map to highlight the selection."""
-        map_item = next(
-            (p for p in dashboard.plots if p.plot_id == "sag-map"), None)
-
-        if map_item and map_item.viz_obj:
-            return map_item.viz_obj.create(
-                filter_value=selected_id,
-                start_date=start_date,
-                end_date=end_date
-            )
-        raise dash.exceptions.PreventUpdate
-
 
 
 @server.route("/")

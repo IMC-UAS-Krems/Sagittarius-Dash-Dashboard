@@ -7,7 +7,6 @@ from typing import Any, NamedTuple
 import polars as pl
 from dash import dcc, html
 from plotly.graph_objs import Figure
-from plotly import graph_objects as go
 
 from requests import get as r_get
 from src.model import Config, GeoMap, Panel, Service
@@ -26,7 +25,6 @@ class GridItem(NamedTuple):
     """Class representing a grid item in the dashboard"""
 
     plot: Figure | None = None  # visualization
-    viz_obj: Any | None = None # visualization object (map)
     selector: dcc.Dropdown | None = None  # dropdown in the dashboard
     plot_id: str | None = None  # id of the plot
     with_callback: bool = False  # whether the plot has a callback
@@ -132,11 +130,8 @@ def _parse_plots_config(
 
 
 def _parse_plots_config_map(plot_name: str, plot: GeoMap) -> GridItem:
-    viz_instance = create_visualization("geomap", plot_name, plot)
-
     return GridItem(
-        viz_obj=viz_instance,
-        plot=go.Figure(),
+        plot=create_visualization("geomap", plot_name, plot).create(),
         plot_id="sag-map",
     )
 
