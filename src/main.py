@@ -25,9 +25,13 @@ def create_grid() -> list[my_dash_component.Container | dcc.Graph]:
             grid.append(
                 my_dash_component.Container(
                     [
-                        dcc.Graph(
-                            className="w-full h-1/2 flex-1", id=grid_item.plot_id
-                        ),
+                        dcc.Loading(
+                            id=f"loading-{grid_item.plot_id}",
+                            type="circle",
+                            children=dcc.Graph(
+                                className="w-full h-1/2 flex-1", id=grid_item.plot_id
+                            ),
+                        )
                     ]
                 )
             )
